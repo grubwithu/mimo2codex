@@ -1,0 +1,196 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { Config } from "./config.js";
+import { reqToChat } from "./translate/reqToChat.js";
+import { respToResponses } from "./translate/respToResponses.js";
+import { pipeChatStreamToResponses } from "./translate/streamToSse.js";
+import { iterChatStreamChunks } from "./upstream/chatStream.js";
+import { callMimo, UpstreamError } from "./upstream/mimoClient.js";
+import { makeServerResponseSink } from "./util/sse.js";
+import { log } from "./util/log.js";
+import type { ChatResponse, ResponsesRequest } from "./translate/types.js";
+
+const KEEPALIVE_INTERVAL_MS = 15_000;
+
+async function readJsonBody<T>(req: IncomingMessage, maxBytes = 16 * 1024 * 1024): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    req.on("data", (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(new Error("request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        const text = Buffer.concat(chunks).toString("utf-8");
+        if (!text) return resolve({} as T);
+        resolve(JSON.parse(text) as T);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(body));
+}
+
+function errorEnvelope(status: number, code: string, message: string): {
+  error: { type: string; code: string; message: string; status: number };
+} {
+  return {
+    error: {
+      type:
+        status === 401
+          ? "authentication_error"
+          : status === 429
+            ? "rate_limit_exceeded"
+            : status >= 500
+              ? "server_error"
+              : "invalid_request_error",
+      code,
+      message,
+      status,
+    },
+  };
+}
+
+async function handleResponses(
+  cfg: Config,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  let payload: ResponsesRequest;
+  try {
+    payload = await readJsonBody<ResponsesRequest>(req);
+  } catch (err) {
+    return sendJson(
+      res,
+      400,
+      errorEnvelope(400, "invalid_json", `failed to parse request body: ${(err as Error).message}`)
+    );
+  }
+  if (!payload.model) {
+    return sendJson(
+      res,
+      400,
+      errorEnvelope(400, "missing_model", "request body must include 'model'")
+    );
+  }
+
+  const chat = reqToChat(payload);
+  const stream = !!payload.stream;
+  chat.stream = stream;
+
+  const ac = new AbortController();
+  req.on("close", () => ac.abort());
+
+  if (!stream) {
+    try {
+      const upstreamRes = await callMimo(
+        { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, userAgent: cfg.userAgent },
+        chat,
+        ac.signal
+      );
+      const chatJson = (await upstreamRes.json()) as ChatResponse;
+      const responses = respToResponses(chatJson, payload, {
+        exposeReasoning: cfg.exposeReasoning,
+      });
+      return sendJson(res, 200, responses);
+    } catch (err) {
+      if (err instanceof UpstreamError) {
+        return sendJson(res, err.status, errorEnvelope(err.status, err.code, err.message));
+      }
+      log.error("non-stream request failed", { error: (err as Error).message });
+      return sendJson(res, 500, errorEnvelope(500, "internal_error", (err as Error).message));
+    }
+  }
+
+  // Streaming path
+  const sink = makeServerResponseSink(res);
+  const keepalive = setInterval(() => sink.comment("keepalive"), KEEPALIVE_INTERVAL_MS);
+  res.on("close", () => clearInterval(keepalive));
+
+  try {
+    const upstreamRes = await callMimo(
+      { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, userAgent: cfg.userAgent },
+      chat,
+      ac.signal
+    );
+    const chunks = iterChatStreamChunks(upstreamRes);
+    await pipeChatStreamToResponses(
+      sink,
+      { chunks },
+      payload,
+      { exposeReasoning: cfg.exposeReasoning }
+    );
+  } catch (err) {
+    clearInterval(keepalive);
+    if (err instanceof UpstreamError) {
+      // Upstream rejected before we sent any SSE — switch to plain JSON if possible.
+      if (!res.headersSent) {
+        return sendJson(res, err.status, errorEnvelope(err.status, err.code, err.message));
+      }
+      sink.write("response.failed", {
+        response: {
+          status: "failed",
+          error: { type: err.code, message: err.message },
+        },
+      });
+      sink.end();
+      return;
+    }
+    log.error("stream request failed", { error: (err as Error).message });
+    if (!res.headersSent) {
+      return sendJson(res, 500, errorEnvelope(500, "internal_error", (err as Error).message));
+    }
+    sink.write("error", {
+      error: { type: "server_error", message: (err as Error).message },
+    });
+    sink.end();
+  } finally {
+    clearInterval(keepalive);
+  }
+}
+
+function handleModels(res: ServerResponse): void {
+  sendJson(res, 200, {
+    object: "list",
+    data: [
+      { id: "mimo-v2.5-pro", object: "model", owned_by: "xiaomi" },
+      { id: "mimo-v2.5-pro[1m]", object: "model", owned_by: "xiaomi" },
+      { id: "mimo-v2-flash", object: "model", owned_by: "xiaomi" },
+    ],
+  });
+}
+
+export function startServer(cfg: Config): Server {
+  const server = createServer((req, res) => {
+    const url = req.url ?? "/";
+
+    if (req.method === "GET" && (url === "/healthz" || url === "/")) {
+      sendJson(res, 200, { ok: true, name: "mimo2codex", baseUrl: cfg.baseUrl });
+      return;
+    }
+    if (req.method === "GET" && url.startsWith("/v1/models")) {
+      handleModels(res);
+      return;
+    }
+    if (req.method === "POST" && url.startsWith("/v1/responses")) {
+      void handleResponses(cfg, req, res);
+      return;
+    }
+    sendJson(res, 404, errorEnvelope(404, "not_found", `no route for ${req.method} ${url}`));
+  });
+
+  server.listen(cfg.port, cfg.host);
+  return server;
+}
