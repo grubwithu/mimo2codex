@@ -41,7 +41,7 @@
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",
     "start": "node dist/cli.js",
-    "dev": "tsx src/cli.ts",
+    "dev": "node scripts/ensure-web.mjs && tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepack": "npm run build:all",

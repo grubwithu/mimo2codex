@@ -30,15 +30,29 @@ import type { ProviderId } from "../providers/types.js";
 import { isProviderId } from "../providers/registry.js";
 import { log } from "../util/log.js";
 
-// Locate dist/web/ relative to THIS module's compiled location, not
-// process.cwd(). When mimo2codex is installed globally (`npm install -g`),
-// the user invokes it from any working directory, so cwd is never the
-// install root — the previous cwd-based resolve always returned a missing
-// path and 503'd. The compiled file lives at <install>/dist/admin/router.js;
-// the static bundle lives at <install>/dist/web/.
+// Locate dist/web/ relative to THIS module's location, not process.cwd().
+// When mimo2codex is installed globally (`npm install -g`), the user invokes
+// it from any working directory, so cwd is never the install root.
+//
+// Two layouts to support:
+//   - production (`node dist/cli.js`):   <root>/dist/admin/router.js → ../web
+//   - dev mode (`tsx src/cli.ts`):       <root>/src/admin/router.ts  → ../../dist/web
+//
+// The list is checked in order; whichever exists wins. If neither exists we
+// fall back to the production path for the 503 message — that's the path the
+// user is most likely meant to populate via `npm run web:build`.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const STATIC_ROOT = resolve(__dirname, "..", "web");
+const STATIC_ROOT = (() => {
+  const candidates = [
+    resolve(__dirname, "..", "web"),                  // dist/admin → dist/web
+    resolve(__dirname, "..", "..", "dist", "web"),    // src/admin  → dist/web
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return candidates[0];
+})();
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
