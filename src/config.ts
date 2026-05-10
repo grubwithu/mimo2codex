@@ -30,6 +30,7 @@ export interface ParsedArgs {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  longContext?: boolean;
   exposeReasoning?: boolean;
   verbose?: boolean;
   envKey?: boolean;
@@ -69,6 +70,10 @@ export function parseArgv(argv: string[]): ParsedArgs {
         break;
       case "--model":
         out.model = next();
+        break;
+      case "--long-context":
+      case "--long":
+        out.longContext = true;
         break;
       case "--no-reasoning":
         out.exposeReasoning = false;

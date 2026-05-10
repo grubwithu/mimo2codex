@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
-import { buildConfig, parseArgv, type Config } from "./config.js";
+import { buildConfig, parseArgv, type Config, type ParsedArgs } from "./config.js";
 import { startServer } from "./server.js";
 import { setVerbose, log, redactKey } from "./util/log.js";
 import { closeDb, openDb } from "./db/index.js";
+import { byShortcut, PROVIDERS } from "./providers/registry.js";
+import type { ProviderId } from "./providers/types.js";
 
 const VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
@@ -18,6 +20,10 @@ OPTIONS
   -p, --port <n>          listen port (default: 8788, env: MIMO2CODEX_PORT)
       --host <h>          bind host (default: 127.0.0.1, env: MIMO2CODEX_HOST)
       --model <shortcut>  default upstream provider: "mimo" (default) or "ds" (DeepSeek)
+      --long-context      for print-config / print-cc-switch — pick the largest-window
+                          model variant of the chosen provider (MiMo → mimo-v2.5-pro[1m]
+                          / 1M; DeepSeek → deepseek-v4-pro / 1M, already default).
+                          Emits the matching model_context_window automatically.
       --base-url <url>    base url for the default provider (env: MIMO_BASE_URL / DEEPSEEK_BASE_URL)
       --api-key <key>     api key for the default provider (env varies — see below) — required
       --no-reasoning      hide reasoning_content from Codex (still re-injected for multi-turn quality)
@@ -65,11 +71,85 @@ EXAMPLES
   mimo2codex print-cc-switch
 `;
 
+interface SnippetTarget {
+  providerId: ProviderId;
+  providerKey: string;             // toml [model_providers.<key>] name
+  providerLabel: string;           // human-readable name field
+  modelId: string;                 // Codex's model = "<id>"
+  contextWindow?: number;          // for model_context_window
+  maxOutputTokens?: number;        // for model_max_output_tokens
+}
+
+function deepseekMaxOutput(): number {
+  // DeepSeek V4 family: 1M input / 384K max output across all current models.
+  return 393_216;
+}
+
+// Pick the provider's default model. `--long-context` upgrades to the largest-
+// context builtin variant for that provider (MiMo → mimo-v2.5-pro[1m]; DeepSeek
+// is already 1M by default). Alternative model ids are also surfaced as a
+// comment block so users can swap by editing one line in cc-switch's textarea.
+function resolveSnippetTarget(parsed: ParsedArgs): SnippetTarget {
+  const providerId: ProviderId = parsed.model
+    ? (byShortcut(parsed.model)?.id ?? "mimo")
+    : "mimo";
+  const provider = PROVIDERS[providerId];
+  let modelMeta = provider.builtinModels.find((m) => m.id === provider.defaultModel);
+  if (parsed.longContext) {
+    const longest = provider.builtinModels
+      .filter((m) => !m.deprecatedAfter && m.contextWindow)
+      .reduce(
+        (best, m) =>
+          !best || (m.contextWindow ?? 0) > (best.contextWindow ?? 0) ? m : best,
+        modelMeta
+      );
+    if (longest) modelMeta = longest;
+  }
+  const modelId = modelMeta?.id ?? provider.defaultModel;
+  return {
+    providerId,
+    providerKey: providerId === "mimo" ? "mimo" : "mimo2codex",
+    providerLabel: provider.displayName,
+    modelId,
+    contextWindow: modelMeta?.contextWindow,
+    maxOutputTokens: providerId === "deepseek" ? deepseekMaxOutput() : undefined,
+  };
+}
+
+function modelTuningLines(t: SnippetTarget): string {
+  const lines: string[] = [];
+  if (t.contextWindow) lines.push(`model_context_window = ${t.contextWindow}`);
+  if (t.maxOutputTokens) lines.push(`model_max_output_tokens = ${t.maxOutputTokens}`);
+  return lines.length ? "\n" + lines.join("\n") : "";
+}
+
+// Comment block listing every builtin model for the chosen provider, with the
+// matching context_window and (for DS) max_output_tokens. Lets the user pick
+// a different variant just by editing two lines in their config.toml — no
+// extra CLI flag needed.
+function alternativesComment(t: SnippetTarget): string {
+  const provider = PROVIDERS[t.providerId];
+  const lines: string[] = [];
+  lines.push(`# Other ${provider.displayName} models (edit the lines above to switch):`);
+  for (const m of provider.builtinModels) {
+    if (m.deprecatedAfter) continue; // hide legacy aliases from the suggestion list
+    const ctx = m.contextWindow
+      ? `   model_context_window = ${m.contextWindow}`
+      : "";
+    const maxOut = t.providerId === "deepseek" && m.contextWindow
+      ? `   model_max_output_tokens = ${deepseekMaxOutput()}`
+      : "";
+    const marker = m.id === t.modelId ? " (current)" : "";
+    lines.push(`#   model = "${m.id}"${ctx}${maxOut}${marker}`);
+  }
+  return lines.join("\n");
+}
+
 // Default snippet — uses ~/.codex/auth.json + requires_openai_auth = true.
 // This avoids the common "Missing environment variable: MIMO2CODEX_KEY" error
 // on the Codex desktop app, which doesn't inherit shell env vars set via
 // `export` or `setx`. Works for both CLI and desktop with no env setup.
-function configSnippet(cfg: { host: string; port: number }): string {
+function configSnippet(cfg: { host: string; port: number }, target: SnippetTarget): string {
   return `# Step 1 — write ~/.codex/auth.json (Windows: %USERPROFILE%\\.codex\\auth.json)
 # Any non-empty value works; mimo2codex does not validate inbound credentials.
 {
@@ -77,11 +157,13 @@ function configSnippet(cfg: { host: string; port: number }): string {
 }
 
 # Step 2 — append to ~/.codex/config.toml (Windows: %USERPROFILE%\\.codex\\config.toml)
-model = "mimo-v2.5-pro"
-model_provider = "mimo"
+model = "${target.modelId}"
+model_provider = "${target.providerKey}"${modelTuningLines(target)}
 
-[model_providers.mimo]
-name = "MiMo (via mimo2codex)"
+${alternativesComment(target)}
+
+[model_providers.${target.providerKey}]
+name = "${target.providerLabel}"
 base_url = "http://${cfg.host}:${cfg.port}/v1"
 wire_api = "responses"
 requires_openai_auth = true
@@ -101,13 +183,15 @@ request_max_retries = 1
 // existing OpenAI login). Requires MIMO2CODEX_KEY to be set in the environment
 // of the process running \`codex\`. Codex DESKTOP APP does not inherit shell env
 // vars on macOS/Windows, so this variant only works reliably for the CLI.
-function configSnippetEnvKey(cfg: { host: string; port: number }): string {
+function configSnippetEnvKey(cfg: { host: string; port: number }, target: SnippetTarget): string {
   return `# ~/.codex/config.toml — env-var variant (Codex CLI only; desktop app won't see shell env vars)
-model = "mimo-v2.5-pro"
-model_provider = "mimo"
+model = "${target.modelId}"
+model_provider = "${target.providerKey}"${modelTuningLines(target)}
 
-[model_providers.mimo]
-name = "MiMo (via mimo2codex)"
+${alternativesComment(target)}
+
+[model_providers.${target.providerKey}]
+name = "${target.providerLabel}"
 base_url = "http://${cfg.host}:${cfg.port}/v1"
 wire_api = "responses"
 env_key = "MIMO2CODEX_KEY"
@@ -129,13 +213,15 @@ request_max_retries = 1
 // ~/.codex/auth.json + ~/.codex/config.toml when you switch providers.
 // This subcommand prints both snippets in a copy-pasteable form so users can
 // add mimo2codex as a custom Codex provider in cc-switch.
-function ccSwitchSnippet(cfg: { host: string; port: number }): string {
+function ccSwitchSnippet(cfg: { host: string; port: number }, target: SnippetTarget): string {
   const authJson = JSON.stringify({ OPENAI_API_KEY: "mimo2codex-local" }, null, 2);
-  const configToml = `model_provider = "mimo2codex"
-model = "mimo-v2.5-pro"
+  const configToml = `model_provider = "${target.providerKey}"
+model = "${target.modelId}"${modelTuningLines(target)}
 
-[model_providers.mimo2codex]
-name = "MiMo (via mimo2codex)"
+${alternativesComment(target)}
+
+[model_providers.${target.providerKey}]
+name = "${target.providerLabel}"
 base_url = "http://${cfg.host}:${cfg.port}/v1"
 wire_api = "responses"
 requires_openai_auth = true
@@ -149,8 +235,8 @@ ${authJson}
 # ───────── config.toml (paste into the config.toml textarea) ─────────
 ${configToml}
 # Note: OPENAI_API_KEY can be any non-empty string — mimo2codex does not
-# validate inbound credentials. Your real MiMo key stays in MIMO_API_KEY
-# on the machine running mimo2codex.
+# validate inbound credentials. Your real upstream key (MIMO_API_KEY /
+# DS_API_KEY) stays in the env of the machine running mimo2codex.
 `;
 }
 
@@ -172,7 +258,7 @@ function checkMimoHostMismatch(cfg: Config): string | null {
   return null;
 }
 
-function printStartupBanner(cfg: Config): void {
+function printStartupBanner(cfg: Config, target: SnippetTarget): void {
   // eslint-disable-next-line no-console
   console.log(`mimo2codex v${VERSION} listening on http://${cfg.host}:${cfg.port}`);
   // eslint-disable-next-line no-console
@@ -213,7 +299,7 @@ function printStartupBanner(cfg: Config): void {
   // eslint-disable-next-line no-console
   console.log("");
   // eslint-disable-next-line no-console
-  console.log(configSnippet({ host: cfg.host, port: cfg.port }));
+  console.log(configSnippet({ host: cfg.host, port: cfg.port }, target));
 }
 
 function main(): void {
@@ -241,16 +327,22 @@ function main(): void {
     const host = parsed.host ?? "127.0.0.1";
     const port = parsed.port ?? 8788;
     const useEnvKey = parsed.envKey === true;
+    const target = resolveSnippetTarget(parsed);
     // eslint-disable-next-line no-console
-    console.log(useEnvKey ? configSnippetEnvKey({ host, port }) : configSnippet({ host, port }));
+    console.log(
+      useEnvKey
+        ? configSnippetEnvKey({ host, port }, target)
+        : configSnippet({ host, port }, target)
+    );
     return;
   }
 
   if (parsed.positional[0] === "print-cc-switch") {
     const host = parsed.host ?? "127.0.0.1";
     const port = parsed.port ?? 8788;
+    const target = resolveSnippetTarget(parsed);
     // eslint-disable-next-line no-console
-    console.log(ccSwitchSnippet({ host, port }));
+    console.log(ccSwitchSnippet({ host, port }, target));
     return;
   }
 
@@ -278,7 +370,7 @@ function main(): void {
     }
   }
 
-  printStartupBanner(cfg);
+  printStartupBanner(cfg, resolveSnippetTarget(parsed));
 
   const server = startServer(cfg);
   server.on("listening", () => {

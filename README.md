@@ -145,6 +145,22 @@ Browse to `http://127.0.0.1:8788/admin/` after start.
 
 Data lives in sqlite (`~/.mimo2codex/data.db`); override with `--data-dir <path>` or disable entirely with `--no-admin`.
 
+### Enabling 1M long context
+
+The Codex client **doesn't read context window from the proxy** — it carries its own model metadata table and falls back to ~256K for any model name it doesn't recognize. So even when the proxy forwards to `mimo-v2.5-pro[1m]` or `deepseek-v4-pro`, the bottom-left context badge in Codex still shows 258K. To actually use 1M, you must declare `model_context_window` explicitly in `config.toml`.
+
+Fastest path:
+
+```bash
+mimo2codex --long-context print-config              # MiMo 1M (picks mimo-v2.5-pro[1m])
+mimo2codex --model ds --long-context print-config   # DeepSeek 1M (default already 1M)
+mimo2codex --long-context print-cc-switch           # cc-switch paste blocks
+```
+
+The output already includes `model_context_window = 1000000` (and `model_max_output_tokens = 393216` for DeepSeek), plus a comment block listing the other builtin models so cc-switch users can swap by editing one line in the textarea — no proxy restart needed.
+
+After writing to `~/.codex/config.toml`, **fully quit and relaunch Codex** (desktop: system tray → Quit, not just close the window). The bottom-left context badge then jumps from 258K to 1M.
+
 ### Providers and model ids
 
 | Provider | Shortcut | Env var | Default base URL | Default model | Models |

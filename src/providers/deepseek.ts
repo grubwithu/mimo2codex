@@ -3,31 +3,38 @@ import { reqToChat } from "../translate/reqToChat.js";
 import type { PreprocessCtx, Provider, ProviderModel } from "./types.js";
 
 // Builtin DeepSeek model catalog. Source: https://api-docs.deepseek.com/zh-cn/
+// All current DeepSeek models share the same window: 1M input / 384K max output.
 // `deepseek-chat` and `deepseek-reasoner` are the legacy aliases that route to
 // `deepseek-v4-flash` (non-thinking / thinking respectively); they're announced
 // for deprecation 2026-07-24. We keep them as aliases for backwards compat.
+const DEEPSEEK_CONTEXT = 1_000_000;
+
 const BUILTIN_MODELS: readonly ProviderModel[] = [
   {
     id: "deepseek-v4-pro",
     displayName: "DeepSeek V4 Pro",
     supportsReasoning: true,
+    contextWindow: DEEPSEEK_CONTEXT,
   },
   {
     id: "deepseek-v4-flash",
     displayName: "DeepSeek V4 Flash",
     aliases: ["deepseek-chat", "deepseek-reasoner"],
     supportsReasoning: true,
+    contextWindow: DEEPSEEK_CONTEXT,
   },
   {
     id: "deepseek-chat",
     displayName: "DeepSeek Chat (legacy)",
     deprecatedAfter: "2026-07-24",
+    contextWindow: DEEPSEEK_CONTEXT,
   },
   {
     id: "deepseek-reasoner",
     displayName: "DeepSeek Reasoner (legacy)",
     supportsReasoning: true,
     deprecatedAfter: "2026-07-24",
+    contextWindow: DEEPSEEK_CONTEXT,
   },
 ];
 
