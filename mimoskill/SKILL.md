@@ -1,6 +1,6 @@
 ---
 name: mimoskill
-description: Use Xiaomi MiMo V2.5 (the LLM behind mimo2codex) for chat, vision, web search, TTS and ASR — and route around capabilities MiMo doesn't natively support, especially image generation needed for things like Codex Pets `/hatch`. Trigger when the user mentions MiMo, calls into mimo2codex, asks to generate / hatch a Codex pet, asks for image generation while using MiMo as the chat backend, or hits a "no image generation available" / "image_gen tool unavailable" message inside Codex.
+description: Use Xiaomi MiMo V2.5 (the LLM behind mimo2codex) for chat, vision, web search, TTS and ASR — and route around capabilities MiMo doesn't natively support, especially OCR / image recognition / 识图 / 提取图片文字 / extract text from image when the current model can't see images, and image generation / 图像生成 / 生成图片 / draw a picture / 画一张 including Codex Pets `/hatch`. Trigger when the user mentions MiMo, calls into mimo2codex, asks to read text from an image, asks to describe or 识别 an image while using a non-vision model (mimo-v2.5-pro, mimo-v2-flash, …), asks to generate / hatch a Codex pet, asks for image generation while using MiMo as the chat backend, or hits a "no image generation available" / "image_gen tool unavailable" / "this model does not support image input" message inside Codex.
 ---
 
 # mimoskill — Xiaomi MiMo V2.5 + gap fillers
@@ -18,6 +18,8 @@ Trigger this skill when:
 - User asks "how do I generate a Codex pet" / "/hatch isn't working" / "image_gen tool not available"
 - User wants image generation as part of a MiMo-backed workflow
 - User pastes the Codex error: `the image generation tool (image_gen) is not available in this environment` or `the CLI fallback requires the openai Python package`
+- User wants to **OCR / read text from / describe / 识别 / 提取文字 from an image** while the active chat model is non-vision (e.g. mimo-v2.5-pro, mimo-v2-flash, or any third-party model without vision) — use `scripts/ocr.py` to fall back through `mimo-v2.5` without changing the chat model
+- User sees the proxy's `[N image attachment(s) omitted: this model does not support image input …]` placeholder in their transcript
 - Anything in the `mimo2codex` repo that touches a feature MiMo doesn't support
 
 ## What MiMo V2.5 does and doesn't do
@@ -35,7 +37,8 @@ Quick answer:
 | ASR (speech recog) | ✅ | `mimo-v2.5-asr` | separate endpoint |
 | Audio chat | ✅ | `mimo-v2-omni` | input only |
 | Video understanding | ✅ | `mimo-v2-omni` | input only |
-| **Image generation** | ❌ | — | **see workaround below** |
+| **Image generation** | ❌ | — | `scripts/generate_image.py` (general) or `scripts/generate_pet.py` (Codex pets) — see below |
+| OCR / 识图 (when chat model is non-vision) | ⚠️ via `mimo-v2.5` | `scripts/ocr.py` | always uses `mimo-v2.5` internally regardless of chat model |
 | Code interpreter / sandbox | ❌ | — | not provided |
 
 For the full capability matrix and examples, read [references/models.md](references/models.md).
@@ -43,13 +46,18 @@ For the full capability matrix and examples, read [references/models.md](referen
 ## Decision tree: what does the user actually want?
 
 ```
-Is it chat / vision / search / TTS / ASR?
-├── Yes → use MiMo directly (see "Calling MiMo directly" below) or via mimo2codex if Codex is the client
-└── No, they want image generation
+Is it OCR / read text from image / describe / 识别 an image
+when the active chat model is non-vision?
+├── Yes → use scripts/ocr.py (always routes through mimo-v2.5 internally)
+└── No
     │
-    Is it for a Codex pet (`/hatch`)?
-    ├── Yes → see "Generating a Codex pet" below
-    └── No → see "Image generation in general" below
+    Is it chat / vision / search / TTS / ASR with a vision-capable model?
+    ├── Yes → use MiMo directly (see "Calling MiMo directly" below) or via mimo2codex if Codex is the client
+    └── No, they want image generation
+        │
+        Is it for a Codex pet (`/hatch`)?
+        ├── Yes → see "Generating a Codex pet" below (scripts/generate_pet.py + install_pet.sh)
+        └── No  → see "General (non-pet) image generation" below (scripts/generate_image.py)
 ```
 
 ## Calling MiMo directly
@@ -67,6 +75,59 @@ python3 mimoskill/scripts/mimo_chat.py --stream "tell me a story"
 The script handles all the MiMo-specific quirks — `max_completion_tokens` instead of `max_tokens`, the required `text` part next to `image_url`, web_search plugin invocation, `reasoning_content` round-tripping, etc.
 
 For non-trivial integrations, [references/models.md](references/models.md) and [the official MiMo OpenAI-compat doc](https://platform.xiaomimimo.com/docs/api/chat/openai-api) are the authoritative references.
+
+## OCR / image recognition (when the chat model can't see images)
+
+If the user wants to **read text from an image** or **describe / 识别 an image** but the current chat model is non-vision (`mimo-v2.5-pro`, `mimo-v2.5-pro[1m]`, `mimo-v2-flash`, or any third-party model without vision), invoke `scripts/ocr.py`. It always uses `mimo-v2.5` internally — the chat model stays untouched.
+
+The proxy silently drops image attachments on non-vision models (`src/translate/reqToChat.ts:48-72`) and leaves a `[N image attachment(s) omitted: …]` placeholder. **When you see that placeholder in the transcript, the right move is to run ocr.py and feed the text back into the conversation.** Don't ask the user to switch models.
+
+```bash
+export MIMO_API_KEY=sk-xxxxxxxxxxxxxxxx
+
+# verbatim OCR (default)
+python3 mimoskill/scripts/ocr.py path/to/image.png
+
+# 2-4 sentence description
+python3 mimoskill/scripts/ocr.py --mode describe https://example.com/x.png
+
+# structured JSON (text + regions + language + summary)
+python3 mimoskill/scripts/ocr.py --mode structured a.png b.jpg
+
+# re-render as GitHub-flavored Markdown (good for forms / receipts)
+cat scan.png | python3 mimoskill/scripts/ocr.py --mode markdown
+```
+
+`ocr.py` accepts local paths, http(s) URLs, `data:` URLs, or stdin bytes. Magic-byte sniffs the MIME (PNG / JPEG / GIF / WebP / BMP). Multiple positional args are batched into one MiMo call. Non-vision `--model` values are auto-coerced to `mimo-v2.5` with one stderr note.
+
+See [references/ocr_workflow.md](references/ocr_workflow.md) for full mode reference, exit codes, JSON shape for `--mode structured`, and the `--lang` / `--prompt` knobs.
+
+## General (non-pet) image generation
+
+For arbitrary image generation, use `scripts/generate_image.py` — a thin wrapper over `generate_pet.py` with the chibi-pet prompt boilerplate removed and an optional `--style` for common looks. Same providers (`auto` / `pollinations` / `gpt-image-1` / `replicate` / `local-sd`), same env vars, same `auto` fallback to free Pollinations when you only have a MiMo key.
+
+```bash
+# free, no key
+python3 mimoskill/scripts/generate_image.py \
+    --prompt "isometric cyberpunk city at dusk" --out /tmp/out.png
+
+# with a style preset
+python3 mimoskill/scripts/generate_image.py --style pixel-art \
+    --prompt "a brave knight" --out /tmp/knight.png
+
+# multiple variants -> /tmp/img-1.png /tmp/img-2.png /tmp/img-3.png /tmp/img-4.png
+python3 mimoskill/scripts/generate_image.py --n 4 \
+    --prompt "watercolor desert sunrise" --out /tmp/img.png
+
+# best quality (needs PET_OPENAI_API_KEY — same env var as the pet flow)
+export PET_OPENAI_API_KEY=sk-real-openai-key
+python3 mimoskill/scripts/generate_image.py --provider gpt-image-1 \
+    --prompt "..." --out /tmp/out.png
+```
+
+`--style` choices: `plain` (default, no prefix), `pixel-art`, `photo`, `3d-render`, `line-art`, `watercolor`, `sticker`. `plain` sends your prompt verbatim — pick that when the user gave a fully-specified prompt.
+
+For **Codex `/hatch` pets** keep using `generate_pet.py` + `install_pet.sh` — that flow is unchanged and tuned for the chibi sprite + 3-state bundle Codex wants.
 
 ## Generating a Codex pet (the `/hatch` alternative)
 

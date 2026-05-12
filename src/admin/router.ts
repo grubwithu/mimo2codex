@@ -7,6 +7,7 @@ import { PROVIDER_LIST } from "../providers/registry.js";
 import {
   aggregateMappings,
   aggregateStats,
+  aggregateTokensTimeseries,
   deleteLogsBefore,
   getLogById,
   queryLogs,
@@ -30,6 +31,14 @@ import {
 import type { ProviderId } from "../providers/types.js";
 import { isProviderId } from "../providers/registry.js";
 import { log } from "../util/log.js";
+import { buildSnippetBundle } from "../setup/snippets.js";
+import {
+  GenericLoaderError,
+  locateProvidersFile,
+  readSpecsFromFile,
+  writeSpecsToFile,
+} from "../providers/genericLoader.js";
+import type { GenericProviderSpec } from "../providers/generic.js";
 
 // Locate dist/web/ relative to THIS module's location, not process.cwd().
 // When mimo2codex is installed globally (`npm install -g`), the user invokes
@@ -141,11 +150,123 @@ async function handleApi(ctx: RouteContext): Promise<void> {
 
   // GET /admin/api/health — quick liveness probe for the UI
   if (req.method === "GET" && pathname === "/admin/api/health") {
-    return sendJson(res, 200, { ok: true, dataDir: cfg.dataDir });
+    // userAgent is "mimo2codex/<version>"; split out the version part for
+    // the footer (cli.ts is the only place that has the package.json version
+    // and it stashes it on cfg.userAgent during startup).
+    const version = cfg.userAgent.startsWith("mimo2codex/")
+      ? cfg.userAgent.slice("mimo2codex/".length)
+      : cfg.userAgent;
+    return sendJson(res, 200, { ok: true, dataDir: cfg.dataDir, version });
   }
 
   if (req.method === "GET" && pathname === "/admin/api/providers") {
     return sendJson(res, 200, { providers: providerStateFor(cfg) });
+  }
+
+  // GET /admin/api/generic-providers
+  // Returns the raw spec list from providers.json + metadata about where
+  // the file lives. The admin UI uses this to populate its editor.
+  if (req.method === "GET" && pathname === "/admin/api/generic-providers") {
+    const loc = locateProvidersFile(process.env, cfg.dataDir);
+    if (!loc) {
+      // dataDir is unset (admin runs without persistence) — no canonical
+      // path to edit. UI surfaces this as a read-only banner.
+      return sendJson(res, 200, {
+        specs: [],
+        path: null,
+        source: null,
+        exists: false,
+        editable: false,
+        notice:
+          "no providers.json location available — admin UI cannot edit when --no-admin is set",
+      });
+    }
+    let specs: GenericProviderSpec[] = [];
+    if (loc.exists) {
+      try {
+        specs = readSpecsFromFile(loc.path);
+      } catch (err) {
+        if (err instanceof GenericLoaderError) {
+          return sendJson(res, 200, {
+            specs: [],
+            path: loc.path,
+            source: loc.source,
+            exists: true,
+            editable: true,
+            error: err.message,
+          });
+        }
+        throw err;
+      }
+    }
+    return sendJson(res, 200, {
+      specs,
+      path: loc.path,
+      source: loc.source,
+      exists: loc.exists,
+      editable: true,
+    });
+  }
+
+  // PUT /admin/api/generic-providers
+  // Body: { providers: GenericProviderSpec[] }
+  // Validates every spec, then atomically writes to providers.json. A
+  // restart is still required for the change to take effect (the in-memory
+  // registry is initialized once at startup).
+  if (req.method === "PUT" && pathname === "/admin/api/generic-providers") {
+    const loc = locateProvidersFile(process.env, cfg.dataDir);
+    if (!loc) {
+      return sendError(
+        res,
+        400,
+        "no_writable_location",
+        "no providers.json path is available — set MIMO2CODEX_DATA_DIR or restart without --no-admin"
+      );
+    }
+    let body: { providers?: unknown };
+    try {
+      body = await readJsonBody<{ providers?: unknown }>(req);
+    } catch (err) {
+      return sendError(res, 400, "invalid_json", (err as Error).message);
+    }
+    if (!Array.isArray(body.providers)) {
+      return sendError(res, 400, "invalid_body", "body must include providers: array");
+    }
+    try {
+      writeSpecsToFile(loc.path, body.providers as GenericProviderSpec[]);
+    } catch (err) {
+      if (err instanceof GenericLoaderError) {
+        return sendError(res, 400, "validation_failed", err.message);
+      }
+      return sendError(res, 500, "write_failed", (err as Error).message);
+    }
+    log.info(
+      `providers.json updated via admin UI (${(body.providers as unknown[]).length} entries, restart required)`
+    );
+    return sendJson(res, 200, {
+      ok: true,
+      path: loc.path,
+      restartRequired: true,
+    });
+  }
+
+  // GET /admin/api/setup-snippets?provider=<id>
+  // Returns every Codex-integration snippet variant (default auth.json,
+  // env-key, cc-switch) so the Setup page can render all three tabs in one
+  // round-trip. When `provider` is omitted, defaults to the configured
+  // default provider — same fallback the CLI uses.
+  if (req.method === "GET" && pathname === "/admin/api/setup-snippets") {
+    const hint = query.get("provider") ?? cfg.defaultProviderId;
+    const bundle = buildSnippetBundle(hint, { host: cfg.host, port: cfg.port });
+    return sendJson(res, 200, {
+      bundle,
+      defaultProviderId: cfg.defaultProviderId,
+      providers: PROVIDER_LIST.map((p) => ({
+        id: p.id,
+        shortcut: p.shortcut,
+        display_name: p.displayName,
+      })),
+    });
   }
 
   // /admin/api/providers/:id/models
@@ -262,6 +383,16 @@ async function handleApi(ctx: RouteContext): Promise<void> {
   if (req.method === "GET" && pathname === "/admin/api/stats") {
     const range = query.get("range") ?? "24h";
     return sendJson(res, 200, aggregateStats(range));
+  }
+
+  // Per-bucket token timeseries for the dashboard chart. Dense (every
+  // bucket in the window appears in `buckets`, zero-filled). Bucket size
+  // is `?bucket=day` (default) or `?bucket=hour`.
+  if (req.method === "GET" && pathname === "/admin/api/stats/timeseries") {
+    const range = query.get("range") ?? "7d";
+    const bucketParam = query.get("bucket");
+    const bucket = bucketParam === "hour" ? "hour" : "day";
+    return sendJson(res, 200, aggregateTokensTimeseries(range, bucket));
   }
 
   if (req.method === "GET" && pathname === "/admin/api/settings") {

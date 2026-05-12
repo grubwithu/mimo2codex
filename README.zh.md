@@ -2,9 +2,11 @@
 
 > [English](./README.md) · 中文
 
-让**最新版** OpenAI Codex CLI / Codex 桌面端无缝接入**小米 MiMo V2.5** 与 **DeepSeek V4 Pro** 的本地代理。把 Codex 的 Responses API 实时翻译成上游的 Chat Completions API，按客户端发的 `model` 字段在 provider 之间自动路由。可配 admin Web 控制台。
+让**最新版** OpenAI Codex CLI / Codex 桌面端接入主流大模型的本地代理。内置 **小米 MiMo V2.5** 与 **DeepSeek V4 Pro**，并提供**通用 provider 机制**——不改任何代码、不重新发包，就能把任何 **OpenAI Chat Completions 兼容**（Qwen / GLM / Kimi / 本地 vLLM / Ollama / LM Studio …）或**原生 Responses API**（OpenAI 自家）的上游接到新版 Codex。把 Codex 的 Responses API 实时翻译成上游的 Chat Completions API，按客户端发的 `model` 字段在 provider 之间自动路由。可配 admin Web 控制台。
 
 ![mimo2codex 安装与启动](https://raw.githubusercontent.com/7as0nch/mimo2codex/main/images/npminstall.jpg)
+
+![Admin 控制台 · 概览](https://raw.githubusercontent.com/7as0nch/mimo2codex/main/images/admin-dashboard.png)
 
 ## 解决什么问题
 
@@ -16,6 +18,7 @@
 
 - ✅ Codex CLI 0.x（`wire_api = "responses"`）+ 桌面端
 - ✅ 多 provider：**MiMo** + **DeepSeek**，同实例混用（按 `model` 字段路由）
+- ✅ **通用 OpenAI 兼容 provider**——Qwen / GLM / Kimi / Ollama / OpenAI 原生 Responses 等，写 `providers.json` 即可接入，详见 [doc/generic-providers.zh.md](./doc/generic-providers.zh.md)
 - ✅ MiMo 模型：`mimo-v2.5-pro` / `mimo-v2.5-pro[1m]` / `mimo-v2-flash`
 - ✅ DeepSeek 模型：`deepseek-v4-pro`（默认）/ `deepseek-v4-flash` / `deepseek-chat` / `deepseek-reasoner`
 - ✅ 工具调用——function tools、并行调用、`local_shell`、`custom`、MCP `namespace`
@@ -91,9 +94,10 @@ mimo2codex --model ds                # 默认 ds（未匹配的 model 字段走 
 
 启动横幅会直接打印好该贴到 `~/.codex/` 的 `auth.json` 和 `config.toml` 内容，并显示已启用的 provider、admin UI 地址、数据目录。默认走 auth.json 方式——CLI 和桌面端都能用，不依赖任何环境变量。
 
-> **`--model` 的语义**：决定**默认 / fallback** provider，不是硬开关。当客户端发的 `model` 字段命中任一已启用 provider 的目录（含别名）时，**自动按该 provider 路由**，与 `--model` 无关。`--model` 只在两种情况下生效：
+> **`--model` 的语义**：决定**默认 / fallback** provider，不是硬开关。当客户端发的 `model` 字段命中任一**已启用**（有 key）provider 的目录（含别名）时，**自动按该 provider 路由**，与 `--model` 无关。`--model` 只在以下情况生效：
 > 1. 只配了一个 provider 的 key——必须把 `--model` 指到那个 provider，否则启动报错
 > 2. 客户端发了未知的 model 字段（如 `gpt-4o`）——走 `--model` 指定 provider 的 `defaultModel`
+> 3. **客户端发的 model 命中了某个 provider 的 catalog，但那个 provider 没设 key**——也走默认 provider 的 `defaultModel`，admin 日志里会记一条 `client_model_rewritten` 标记。比如你只设了 `MIMO_API_KEY` 没设 `QWEN_API_KEY`，发 `qwen3-max` 会被静默重写成 `mimo-v2.5-pro` 发给 MiMo。在 admin 的「模型映射记录」表里能看到这条 `qwen3-max → mimo-v2.5-pro` 映射
 
 ### 3. 配置 Codex
 
@@ -180,6 +184,41 @@ model_context_window = 128000
 *legacy，2026-07-24 弃用，对应 v4-flash 的非思考 / 思考双模。
 
 > MiMo 的 `tp-*` key 自动用 token-plan 主机（`https://token-plan-cn.xiaomimimo.com/v1`），`sk-*` key 自动用 pay-as-you-go 主机。如果你显式设了 `MIMO_BASE_URL` / `--base-url`，那就以你的为准；启动横幅在 key 前缀和主机不匹配时会打 ⚠ 警告。
+
+### 接入第三方 OpenAI 兼容上游
+
+除了内置的 MiMo / DeepSeek，**任何 OpenAI Chat Completions 兼容**（Qwen / GLM / Kimi / Ollama / vLLM …）或**原生 Responses API**（OpenAI 自家、未来其他）的上游都能在不改代码的前提下接到 Codex。
+
+**最简方式**——一个 env 三件套：
+
+```bash
+export GENERIC_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+export GENERIC_API_KEY=sk-your-qwen-key
+export GENERIC_DEFAULT_MODEL=qwen3-max
+mimo2codex --model generic
+```
+
+**多实例方式**——写 `~/.mimo2codex/providers.json`：
+
+```json
+{
+  "providers": [
+    {
+      "id": "qwen",
+      "displayName": "Qwen (DashScope)",
+      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "envKey": "QWEN_API_KEY",
+      "defaultModel": "qwen3-max"
+    }
+  ]
+}
+```
+
+然后 `QWEN_API_KEY=sk-... mimo2codex --model qwen`。
+
+完整字段说明、`wireApi: "responses"` 直透模式、Qwen / GLM / Kimi / Ollama / OpenAI 五种主流上游的可粘贴示例、路由规则、故障排查，全部在 **[doc/generic-providers.zh.md](./doc/generic-providers.zh.md)**。
+
+> 既有 mimo / deepseek 用户不写 `providers.json` 时**完全不受影响**——默认仍是 mimo，所有行为字节级一致。
 
 ## CLI 参数速查
 
@@ -387,14 +426,16 @@ bash mimoskill/scripts/install_pet.sh pet.png shiba
 ```
 src/
   cli.ts, server.ts, config.ts        # 入口 + 路由 + 多 provider 配置
-  providers/{types,mimo,deepseek,registry}.ts   # Provider 抽象 + MiMo / DeepSeek 实现
-  upstream/openaiCompatClient.ts      # 通用 Chat Completions 客户端 + provider error hook
+  providers/{types,mimo,deepseek,generic,genericLoader,registry}.ts   # Provider 抽象 + 内置 + 通用工厂
+  setup/snippets.ts                   # print-config 与 admin /setup-snippets 共享的 snippet 生成器
+  upstream/openaiCompatClient.ts      # chat + responses 直透两套上游客户端
   translate/                          # Responses API ↔ Chat Completions API 翻译
   admin/router.ts                     # /admin/api/* REST + /admin/* SPA 静态托管
   db/{index,logs,settings,models}.ts  # better-sqlite3 持久化层 + migrations + seed
-test/                # 100 个 vitest 用例
+test/                # 136 个 vitest 用例
 web/                 # Vite + React 18 控制台（构建产物 dist/web/）
 mimoskill/           # MiMo 辅助工具 + 宠物生成绕路方案
+doc/                 # 扩展文档（通用 provider 等），README 里引用
 scripts/install.{sh,ps1}  # 一键安装脚本
 dist/                # tsc + vite 编译产物
 AGENTS.md            # Codex agent 说明（不要装 openai，用 mimoskill）

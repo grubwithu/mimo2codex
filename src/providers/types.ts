@@ -1,6 +1,10 @@
 import type { ChatRequest, ResponsesRequest } from "../translate/types.js";
 
-export type ProviderId = "mimo" | "deepseek";
+// Provider id is a runtime-registered string. Built-ins are "mimo" / "deepseek";
+// generic OpenAI-compatible providers loaded from providers.json contribute
+// their own ids at startup. Kept as a type alias for semantic clarity at call
+// sites that previously expected the literal union.
+export type ProviderId = string;
 
 export interface ProviderRuntime {
   baseUrl: string;
@@ -16,6 +20,11 @@ export interface ProviderModel {
   supportsReasoning?: boolean;
   supportsWebSearch?: boolean;
   contextWindow?: number;
+  // Optional per-model output cap. Used by cli.ts when emitting
+  // `model_max_output_tokens` in the toml snippet. DeepSeek used to hardcode
+  // 393_216 in cli.ts; with this field, generic providers can declare their
+  // own caps uniformly.
+  maxOutputTokens?: number;
   deprecatedAfter?: string;
 }
 
@@ -38,6 +47,16 @@ export interface Provider {
   envKeys: readonly string[];
   defaultModel: string;
   builtinModels: readonly ProviderModel[];
+  // Wire protocol toward the upstream. "chat" (default) goes through
+  // reqToChat/respToResponses translation. "responses" pipes the Codex
+  // Responses payload straight to the upstream's /v1/responses endpoint —
+  // useful when the upstream natively speaks Responses (OpenAI, future
+  // Chat-Completions-deprecated providers) and translation would only
+  // strip fields the upstream actually understands.
+  wireApi?: "chat" | "responses";
+  // Optional doc URL surfaced in "missing API key" error messages instead
+  // of the hardcoded mimo / deepseek console links.
+  docsUrl?: string;
 
   detectFlags(apiKey: string, baseUrl: string): Record<string, boolean>;
   // Some providers route different key tiers to different hosts. MiMo's
@@ -48,5 +67,10 @@ export interface Provider {
   resolveModel(clientModel: string): ProviderModel | null;
   preprocessResponses(req: ResponsesRequest, ctx: PreprocessCtx): ChatRequest;
   preprocessChat(req: ChatRequest, ctx: PreprocessCtx): ChatRequest;
+  // Lightweight hook for wireApi === "responses". Receives the original Codex
+  // Responses payload; return the version to forward (model id rewrite,
+  // field cleanup, etc). Default behavior when omitted is identity passthrough
+  // with `model` substituted by the routing layer.
+  preprocessResponsesPassthrough?(req: ResponsesRequest, ctx: PreprocessCtx): ResponsesRequest;
   enhanceError(ctx: { status: number; snippet?: string }): ProviderEnhancedError | null;
 }

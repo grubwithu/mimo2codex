@@ -198,3 +198,133 @@ export function deleteLogsBefore(ts: number): number {
   const info = getDb().prepare("DELETE FROM chat_logs WHERE ts < ?").run(ts);
   return info.changes;
 }
+
+// Per-day token usage broken down by (provider_id, upstream_model). The
+// dashboard renders this as a multi-series line chart so users can spot
+// which model is eating their token budget.
+//
+// Returns dense data — every day in the window appears in `buckets`, and
+// every model returned has a `tokens` array of the same length with zero
+// entries for days where it had no traffic. Makes the SVG chart trivial to
+// render without per-day lookup tables.
+export interface TokenTimeseriesSeries {
+  provider_id: string;
+  upstream_model: string;
+  tokens: number[]; // same length as buckets, zero-filled
+  prompt_tokens: number[];
+  completion_tokens: number[];
+  total: number; // sum across the window, for ranking
+}
+
+export type TimeseriesBucket = "day" | "hour";
+
+export interface TokenTimeseries {
+  range: string;
+  bucket: TimeseriesBucket;
+  since: number;
+  // Per-bucket time labels:
+  //   - bucket="day"  → "YYYY-MM-DD"
+  //   - bucket="hour" → "YYYY-MM-DD HH" (24-hour, local tz)
+  // Both formats are ascending and dense (no gaps).
+  buckets: string[];
+  series: TokenTimeseriesSeries[];
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function isoHour(d: Date): string {
+  return `${isoDate(d)} ${pad2(d.getHours())}`;
+}
+
+export function aggregateTokensTimeseries(
+  range: string,
+  bucket: TimeseriesBucket = "day"
+): TokenTimeseries {
+  const span = RANGE_MS[range] ?? RANGE_MS["7d"];
+  const since = Date.now() - span;
+
+  // Build the dense bucket list spanning [since..now] inclusive, in local
+  // time. Emitted ascending so the chart x-axis reads left-to-right from
+  // oldest to newest.
+  const buckets: string[] = [];
+  if (bucket === "hour") {
+    const start = new Date(since);
+    start.setMinutes(0, 0, 0);
+    const end = new Date();
+    end.setMinutes(0, 0, 0);
+    for (let d = new Date(start); d <= end; d.setHours(d.getHours() + 1)) {
+      buckets.push(isoHour(d));
+    }
+  } else {
+    const start = new Date(since);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      buckets.push(isoDate(d));
+    }
+  }
+  const bucketIndex: Map<string, number> = new Map(buckets.map((b, i) => [b, i]));
+
+  // The SQL-side bucket key must match the JS string format above so the
+  // bucketIndex lookup hits. strftime + unixepoch + localtime gives us the
+  // local-tz date/hour string SQLite-side.
+  const fmt =
+    bucket === "hour" ? "%Y-%m-%d %H" : "%Y-%m-%d";
+  const rows = getDb()
+    .prepare(
+      `SELECT strftime('${fmt}', ts/1000, 'unixepoch', 'localtime') AS day,
+              provider_id,
+              upstream_model,
+              COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+              COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+              COALESCE(SUM(total_tokens), 0) AS total_tokens
+       FROM chat_logs
+       WHERE ts >= @since
+       GROUP BY day, provider_id, upstream_model
+       ORDER BY day ASC`
+    )
+    .all({ since }) as Array<{
+    day: string;
+    provider_id: string;
+    upstream_model: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  }>;
+
+  // Pivot the long-format rows into per-model series with dense bucket arrays.
+  const seriesMap = new Map<string, TokenTimeseriesSeries>();
+  for (const r of rows) {
+    const key = `${r.provider_id}:::${r.upstream_model}`;
+    let s = seriesMap.get(key);
+    if (!s) {
+      s = {
+        provider_id: r.provider_id,
+        upstream_model: r.upstream_model,
+        tokens: new Array(buckets.length).fill(0),
+        prompt_tokens: new Array(buckets.length).fill(0),
+        completion_tokens: new Array(buckets.length).fill(0),
+        total: 0,
+      };
+      seriesMap.set(key, s);
+    }
+    const idx = bucketIndex.get(r.day);
+    if (idx === undefined) continue;
+    s.tokens[idx] = r.total_tokens;
+    s.prompt_tokens[idx] = r.prompt_tokens;
+    s.completion_tokens[idx] = r.completion_tokens;
+    s.total += r.total_tokens;
+  }
+
+  // Sort by total descending so the chart picks the most-used models when
+  // truncating the legend.
+  const series = Array.from(seriesMap.values()).sort((a, b) => b.total - a.total);
+  return { range, bucket, since, buckets, series };
+}

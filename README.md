@@ -2,9 +2,11 @@
 
 > English · [中文文档](./README.zh.md)
 
-Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to **Xiaomi MiMo V2.5** and **DeepSeek V4 Pro**, by translating Codex's Responses API ↔ upstream Chat Completions on the fly. Per-request routing by `model` field, optional admin web console, runs on `127.0.0.1`.
+Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtually any modern LLM. Built-in support for **Xiaomi MiMo V2.5** and **DeepSeek V4 Pro**, plus a **generic provider mechanism** that connects any **OpenAI Chat Completions-compatible** (Qwen / GLM / Kimi / vLLM / Ollama / LM Studio …) or **native Responses API** (OpenAI itself) upstream — no code changes, no re-publish needed. Translates Codex's Responses API ↔ upstream Chat Completions on the fly, per-request routing by `model` field, optional admin web console, runs on `127.0.0.1`.
 
 ![mimo2codex install + run](https://raw.githubusercontent.com/7as0nch/mimo2codex/main/images/npminstall.jpg)
+
+![Admin console · dashboard](https://raw.githubusercontent.com/7as0nch/mimo2codex/main/images/admin-dashboard.png)
 
 ## Why
 
@@ -16,6 +18,7 @@ Conceptually a sibling of [openrouter](https://openrouter.ai), [claude-code-rout
 
 - ✅ Codex CLI `wire_api = "responses"` and Codex desktop app
 - ✅ Multi-provider — **MiMo** + **DeepSeek**, mixed within one process (per-request routing by `model` field)
+- ✅ **Generic OpenAI-compatible providers** — Qwen / GLM / Kimi / Ollama / native-Responses OpenAI, declare in `providers.json` and they just work. See [doc/generic-providers.md](./doc/generic-providers.md)
 - ✅ MiMo models: `mimo-v2.5-pro` / `mimo-v2.5-pro[1m]` / `mimo-v2-flash`
 - ✅ DeepSeek models: `deepseek-v4-pro` (default) / `deepseek-v4-flash` / `deepseek-chat` / `deepseek-reasoner`
 - ✅ Tool calling — function tools, parallel calls, `local_shell`, `custom`, MCP `namespace`
@@ -91,9 +94,10 @@ mimo2codex --model ds                # default fallback: ds (unknown model field
 
 The startup banner prints the `auth.json` + `config.toml` snippets, the enabled providers, the admin UI URL and the data directory. Default works for both Codex CLI and desktop without any env-var dance.
 
-> **What `--model` actually does**: it picks the **default / fallback** provider — not a hard switch. When the client-supplied `model` field matches any enabled provider's catalog (including aliases), the request is routed to that provider regardless of `--model`. `--model` only matters when:
+> **What `--model` actually does**: it picks the **default / fallback** provider — not a hard switch. When the client-supplied `model` field matches any **enabled** (key configured) provider's catalog (including aliases), the request is routed to that provider regardless of `--model`. `--model` only matters when:
 > 1. Only one provider's key is configured — `--model` must point at it, otherwise startup errors out.
 > 2. The client sends a model id that no provider recognizes (e.g. `gpt-4o`) — it falls back to the `--model` provider's `defaultModel`.
+> 3. **The client sends a model that matches some provider's catalog, but that provider has no key configured** — also falls back to the `--model` provider's `defaultModel`, logged in admin as `client_model_rewritten`. E.g. if you only set `MIMO_API_KEY` (not `QWEN_API_KEY`), sending `qwen3-max` is silently rewritten to `mimo-v2.5-pro` and forwarded to MiMo. The admin "model mappings" table will show this `qwen3-max → mimo-v2.5-pro` rewrite.
 
 ### 3. Configure Codex
 
@@ -180,6 +184,41 @@ After writing to `~/.codex/config.toml`, **fully quit and relaunch Codex** (desk
 *legacy, deprecated 2026-07-24, both alias the v4-flash thinking / non-thinking modes.
 
 > MiMo's `tp-*` keys auto-route to the token-plan host (`https://token-plan-cn.xiaomimimo.com/v1`); `sk-*` keys use the pay-as-you-go host. Setting `MIMO_BASE_URL` / `--base-url` explicitly overrides this; the startup banner prints a ⚠ warning if your key prefix and host don't match.
+
+### Plugging in third-party OpenAI-compatible upstreams
+
+Beyond the built-in MiMo / DeepSeek, **any OpenAI Chat Completions-compatible** (Qwen / GLM / Kimi / Ollama / vLLM …) or **native Responses API** (OpenAI itself, future-leaning providers) upstream can connect to Codex with zero code changes.
+
+**Simplest path** — one env trio:
+
+```bash
+export GENERIC_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+export GENERIC_API_KEY=sk-your-qwen-key
+export GENERIC_DEFAULT_MODEL=qwen3-max
+mimo2codex --model generic
+```
+
+**Multi-instance** — write `~/.mimo2codex/providers.json`:
+
+```json
+{
+  "providers": [
+    {
+      "id": "qwen",
+      "displayName": "Qwen (DashScope)",
+      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "envKey": "QWEN_API_KEY",
+      "defaultModel": "qwen3-max"
+    }
+  ]
+}
+```
+
+Then `QWEN_API_KEY=sk-... mimo2codex --model qwen`.
+
+Full field reference, `wireApi: "responses"` passthrough mode, copy-pasteable examples for Qwen / GLM / Kimi / Ollama / OpenAI, routing rules and troubleshooting all live in **[doc/generic-providers.md](./doc/generic-providers.md)**.
+
+> Existing mimo / deepseek users with no `providers.json` **are not affected** — default provider stays `mimo` and behavior is byte-identical.
 
 ## CLI flags
 
@@ -396,14 +435,16 @@ For higher quality, set `PET_OPENAI_API_KEY=sk-real-openai-key` (separate from `
 ```
 src/
   cli.ts, server.ts, config.ts        # entry, routing, multi-provider config
-  providers/{types,mimo,deepseek,registry}.ts   # Provider abstraction + MiMo / DeepSeek impls
-  upstream/openaiCompatClient.ts      # generic Chat Completions client + provider error hook
+  providers/{types,mimo,deepseek,generic,genericLoader,registry}.ts   # Provider abstraction + built-ins + generic factory
+  setup/snippets.ts                   # shared print-config / admin /setup-snippets generator
+  upstream/openaiCompatClient.ts      # chat + responses passthrough upstream clients
   translate/                          # Responses ↔ Chat Completions translation
   admin/router.ts                     # /admin/api/* REST + /admin/* SPA static hosting
   db/{index,logs,settings,models}.ts  # better-sqlite3 layer + migrations + seed
-test/                # 100 vitest cases
+test/                # 136 vitest cases
 web/                 # Vite + React 18 admin console (builds to dist/web/)
 mimoskill/           # MiMo helpers + pet generation workaround
+doc/                 # extended docs (generic providers, etc.) — referenced from README
 scripts/install.{sh,ps1}  # one-liner bootstrap
 dist/                # tsc + vite output (generated)
 AGENTS.md            # Codex-agent instructions (don't import openai, use mimoskill)

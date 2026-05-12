@@ -21,7 +21,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export interface ProviderInfo {
-  id: "mimo" | "deepseek";
+  // Provider id is a runtime-registered string; "mimo" and "deepseek" are
+  // built in, anything else is a user-declared generic provider.
+  id: string;
   shortcut: string;
   display_name: string;
   default: boolean;
@@ -31,6 +33,67 @@ export interface ProviderInfo {
   base_url: string;
   default_model: string;
   flags: Record<string, boolean>;
+}
+
+export interface SetupSnippetTarget {
+  providerId: string;
+  providerKey: string;
+  providerLabel: string;
+  modelId: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+}
+
+export interface SetupSnippetBundle {
+  target: SetupSnippetTarget;
+  authJson: string;
+  configToml: string;
+  configTomlEnvKey: string;
+  ccSwitchAuthJson: string;
+  ccSwitchConfigToml: string;
+}
+
+export interface SetupSnippetsResponse {
+  bundle: SetupSnippetBundle;
+  defaultProviderId: string;
+  providers: Array<{ id: string; shortcut: string; display_name: string }>;
+}
+
+// Generic provider spec — mirror of GenericProviderSpec in src/providers/generic.ts.
+// Stored verbatim in providers.json.
+export interface GenericProviderModelSpec {
+  id: string;
+  aliases?: string[];
+  displayName?: string;
+  supportsImages?: boolean;
+  supportsReasoning?: boolean;
+  supportsWebSearch?: boolean;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  deprecatedAfter?: string;
+}
+
+export interface GenericProviderSpec {
+  id: string;
+  shortcut?: string;
+  displayName?: string;
+  baseUrl: string;
+  envKey: string;
+  defaultModel: string;
+  wireApi?: "chat" | "responses";
+  models?: GenericProviderModelSpec[];
+  features?: { webSearch?: boolean; forceParallelToolCalls?: boolean };
+  docsUrl?: string;
+}
+
+export interface GenericProvidersResponse {
+  specs: GenericProviderSpec[];
+  path: string | null;
+  source: "explicit" | "default" | null;
+  exists: boolean;
+  editable: boolean;
+  notice?: string;
+  error?: string;
 }
 
 export interface ModelRow {
@@ -98,8 +161,27 @@ export interface StatsResponse {
   }>;
 }
 
+export interface TokenTimeseriesSeries {
+  provider_id: string;
+  upstream_model: string;
+  tokens: number[];
+  prompt_tokens: number[];
+  completion_tokens: number[];
+  total: number;
+}
+
+export type TimeseriesBucket = "day" | "hour";
+
+export interface TokenTimeseriesResponse {
+  range: string;
+  bucket: TimeseriesBucket;
+  since: number;
+  buckets: string[];
+  series: TokenTimeseriesSeries[];
+}
+
 export const api = {
-  health: () => request<{ ok: boolean; dataDir: string }>("GET", "/health"),
+  health: () => request<{ ok: boolean; dataDir: string; version: string }>("GET", "/health"),
   providers: () => request<{ providers: ProviderInfo[] }>("GET", "/providers"),
   modelsFor: (providerId: string) =>
     request<{ models: ModelRow[] }>("GET", `/providers/${providerId}/models`),
@@ -126,9 +208,26 @@ export const api = {
   mappings: () => request<{ mappings: MappingRow[] }>("GET", "/mappings"),
   stats: (range: "24h" | "7d" | "30d" = "24h") =>
     request<StatsResponse>("GET", `/stats?range=${range}`),
+  tokenTimeseries: (range: "24h" | "7d" | "30d" = "7d", bucket: TimeseriesBucket = "day") =>
+    request<TokenTimeseriesResponse>(
+      "GET",
+      `/stats/timeseries?range=${range}&bucket=${bucket}`
+    ),
   settings: () => request<{ settings: Record<string, string> }>("GET", "/settings"),
   setSetting: (key: string, value: string) =>
     request<{ key: string; value: string }>("PUT", `/settings/${encodeURIComponent(key)}`, {
       value,
     }),
+  setupSnippets: (providerId?: string) => {
+    const qs = providerId ? `?provider=${encodeURIComponent(providerId)}` : "";
+    return request<SetupSnippetsResponse>("GET", `/setup-snippets${qs}`);
+  },
+  genericProviders: () =>
+    request<GenericProvidersResponse>("GET", "/generic-providers"),
+  saveGenericProviders: (providers: GenericProviderSpec[]) =>
+    request<{ ok: boolean; path: string; restartRequired: boolean }>(
+      "PUT",
+      "/generic-providers",
+      { providers }
+    ),
 };

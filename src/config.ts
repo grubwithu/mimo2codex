@@ -2,6 +2,14 @@ import { byShortcut, isProviderId, PROVIDER_LIST, PROVIDERS } from "./providers/
 import type { Provider, ProviderId, ProviderRuntime } from "./providers/types.js";
 import { resolveDataDir } from "./db/dataDir.js";
 
+// Documentation URLs surfaced in "missing API key" errors. Built-ins are
+// hardcoded here so error messages stay user-friendly; generic providers
+// supply their own via Provider.docsUrl.
+const BUILTIN_DOCS_URL: Record<string, string> = {
+  mimo: "https://platform.xiaomimimo.com/#/console/api-keys",
+  deepseek: "https://platform.deepseek.com/api_keys",
+};
+
 export interface Config {
   host: string;
   port: number;
@@ -168,13 +176,13 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
     defaultProviderId = env.MIMO2CODEX_DEFAULT_PROVIDER;
   }
 
-  // Resolve runtime for every provider; null when no key is available. We
-  // register all providers up-front so PR2's per-request routing can dispatch
-  // to a non-default provider when its key is present.
-  const providers: Record<ProviderId, ProviderRuntime | null> = {
-    mimo: null,
-    deepseek: null,
-  };
+  // Resolve runtime for every registered provider (built-ins + any generic
+  // providers loaded via initRegistry). Runtime is null when no key is
+  // available; the registry stays populated so per-request model-based
+  // routing can still recognize the provider's catalog.
+  const providers: Record<ProviderId, ProviderRuntime | null> = Object.fromEntries(
+    PROVIDER_LIST.map((p) => [p.id, null])
+  );
   for (const p of PROVIDER_LIST) {
     providers[p.id] = resolveProviderRuntime(p, p.id === defaultProviderId, parsed, env);
   }
@@ -183,10 +191,10 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
   if (!defaultRuntime) {
     const def = PROVIDERS[defaultProviderId];
     const envHint = def.envKeys.join(" or ");
-    const docs =
-      def.id === "mimo"
-        ? "Get one at https://platform.xiaomimimo.com/#/console/api-keys"
-        : "Get one at https://platform.deepseek.com/api_keys";
+    const docsUrl = def.docsUrl ?? BUILTIN_DOCS_URL[def.id];
+    const docs = docsUrl
+      ? `Get one at ${docsUrl}`
+      : `Configure baseUrl + envKey in your providers.json entry for "${def.id}".`;
     throw new Error(
       `missing API key for ${def.displayName} — set ${envHint} env var or pass --api-key. ${docs}`
     );

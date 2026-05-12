@@ -29,6 +29,18 @@ adjust your assumptions accordingly.
    dependency, say so explicitly with the user before adding code that
    depends on it.
 
+4. **Non-vision model + image input → don't give up, OCR it.** When the
+   active chat model is `mimo-v2.5-pro`, `mimo-v2.5-pro[1m]`, `mimo-v2-flash`,
+   or any third-party model without vision, the proxy strips image
+   attachments in `src/translate/reqToChat.ts:48-72` and leaves a
+   `[N image attachment(s) omitted: this model does not support image input …]`
+   placeholder. When you see that placeholder, **or** when the user asks to
+   "read / describe / OCR / 识别 / 提取" an image, run
+   `python3 mimoskill/scripts/ocr.py <image>` and feed the result back into
+   the conversation. The script always uses `mimo-v2.5` internally — do
+   **not** ask the user to switch chat models, the OCR fallback is
+   transparent.
+
 ## Where things are
 
 - `src/` — TypeScript source for the proxy (Node 18+). Compiled to `dist/`
@@ -98,10 +110,15 @@ is in `mimoskill/references/models.md`. Quick rules:
 
 - **Image input (vision)** — only `mimo-v2.5` and `mimo-v2-omni` accept it.
   `mimo-v2.5-pro` does NOT. mimo2codex auto-strips images on non-vision
-  models.
+  models. **If you need the image content anyway, run
+  `mimoskill/scripts/ocr.py` to extract text / description via `mimo-v2.5`
+  without changing the chat model.** Modes: `text` (default, verbatim OCR),
+  `describe` (prose), `structured` (JSON regions), `markdown` (re-render).
 - **Image generation** — none of MiMo's models do this. Use
-  `mimoskill/scripts/generate_pet.py` (works for any image-gen task, not
-  just pets).
+  `mimoskill/scripts/generate_image.py` for general image gen (free
+  Pollinations by default, or higher-quality `gpt-image-1` when
+  `PET_OPENAI_API_KEY` is set), or `mimoskill/scripts/generate_pet.py` +
+  `install_pet.sh` for Codex `/hatch` pets specifically.
 - **TTS / ASR** — separate MiMo endpoints (`mimo-v2.5-tts`, `mimo-v2.5-asr`).
   Out of scope for the chat completions proxy; call them directly.
 - **Code interpreter / sandboxed Python** — not provided by MiMo. Run code
@@ -135,5 +152,7 @@ For the canonical reference, hit
   emit ready-to-paste config snippets — prefer those over hand-crafting
   TOML / JSON.
 - If you find yourself writing a new `import openai` or `pip install
-  openai` line, stop and use `mimoskill/scripts/mimo_chat.py` (chat) or
-  `mimoskill/scripts/generate_pet.py` (image gen) instead.
+  openai` line, stop and use `mimoskill/scripts/mimo_chat.py` (chat),
+  `mimoskill/scripts/ocr.py` (OCR / image recognition), or
+  `mimoskill/scripts/generate_image.py` / `generate_pet.py` (image gen)
+  instead.

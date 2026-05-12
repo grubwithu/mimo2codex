@@ -3,7 +3,7 @@ import { api, type ModelRow, type ProviderInfo, type AliasRow } from "../api/cli
 
 export function Models() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [active, setActive] = useState<"mimo" | "deepseek">("mimo");
+  const [active, setActive] = useState<string>("mimo");
   const [models, setModels] = useState<ModelRow[]>([]);
   const [aliases, setAliases] = useState<AliasRow[]>([]);
   const [error, setError] = useState<string | null>(null);

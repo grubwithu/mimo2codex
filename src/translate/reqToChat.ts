@@ -67,7 +67,7 @@ function partsToChatContent(
     // Add a short inline note so the model knows context was lost.
     out.push({
       type: "text",
-      text: `[${droppedImages} image attachment${droppedImages > 1 ? "s" : ""} omitted: this model does not support image input. Switch to mimo-v2.5 or mimo-v2-omni for vision tasks.]`,
+      text: `[${droppedImages} image attachment${droppedImages > 1 ? "s" : ""} omitted: this model does not support image input. Switch to mimo-v2.5 or mimo-v2-omni for vision tasks, OR run \`python3 mimoskill/scripts/ocr.py <path>\` to OCR/describe via mimo-v2.5 without changing the chat model.]`,
     });
   }
 

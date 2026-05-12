@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
-import { api, type LogRow, type MappingRow, type ProviderInfo, type StatsResponse } from "../api/client";
+import { Link } from "react-router-dom";
+import {
+  api,
+  type LogRow,
+  type MappingRow,
+  type ProviderInfo,
+  type StatsResponse,
+  type TimeseriesBucket,
+  type TokenTimeseriesResponse,
+} from "../api/client";
 import { KeyStatusBanner } from "../components/KeyStatusBanner";
+import { TokenChart } from "../components/TokenChart";
+
+const SETUP_BANNER_KEY = "m2c.setup-banner-dismissed";
 
 function formatTokens(n: number): string {
   if (n < 1000) return String(n);
@@ -15,22 +27,41 @@ function formatTime(ts: number): string {
 export function Dashboard() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [timeseries, setTimeseries] = useState<TokenTimeseriesResponse | null>(null);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [mappings, setMappings] = useState<MappingRow[]>([]);
   const [range, setRange] = useState<"24h" | "7d" | "30d">("24h");
+  // Chart-only granularity toggle. The cards/tables above still use a single
+  // range total; the chart picks between day and hour buckets.
+  const [bucket, setBucket] = useState<TimeseriesBucket>("hour");
   const [error, setError] = useState<string | null>(null);
+  const [showSetupBanner, setShowSetupBanner] = useState<boolean>(() => {
+    if (typeof localStorage === "undefined") return true;
+    return localStorage.getItem(SETUP_BANNER_KEY) !== "1";
+  });
+
+  function dismissSetupBanner() {
+    setShowSetupBanner(false);
+    try {
+      localStorage.setItem(SETUP_BANNER_KEY, "1");
+    } catch {
+      // ignore — private mode / quota errors shouldn't crash the page
+    }
+  }
 
   async function load() {
     try {
       setError(null);
-      const [p, s, l, m] = await Promise.all([
+      const [p, s, t, l, m] = await Promise.all([
         api.providers(),
         api.stats(range),
+        api.tokenTimeseries(range, bucket),
         api.logs({ limit: 10 }),
         api.mappings(),
       ]);
       setProviders(p.providers);
       setStats(s);
+      setTimeseries(t);
       setLogs(l.logs);
       setMappings(m.mappings);
     } catch (err) {
@@ -43,7 +74,7 @@ export function Dashboard() {
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [range, bucket]);
 
   const totals = stats?.rows.reduce(
     (acc, r) => ({
@@ -62,6 +93,23 @@ export function Dashboard() {
         <div className="banner err">
           <span className="ic">!</span>
           <div className="body">{error}</div>
+        </div>
+      )}
+
+      {showSetupBanner && (
+        <div className="banner info">
+          <span className="ic">👋</span>
+          <div className="body">
+            第一次用？看「<Link to="/setup">对接指引</Link>」页面 — 一键拿到把
+            Codex 接到 mimo2codex 的配置片段（含 auth.json + config.toml）。
+          </div>
+          <button
+            className="secondary"
+            onClick={dismissSetupBanner}
+            style={{ alignSelf: "flex-start" }}
+          >
+            关闭
+          </button>
         </div>
       )}
 
@@ -115,6 +163,31 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      <div
+        className="row"
+        style={{ marginTop: 24, marginBottom: 8, justifyContent: "space-between" }}
+      >
+        <h3 style={{ margin: 0 }}>Token 消耗趋势</h3>
+        <div className="row" style={{ margin: 0 }}>
+          <span style={{ color: "var(--muted)", fontSize: 12 }}>粒度：</span>
+          {(["hour", "day"] as const).map((b) => (
+            <button
+              key={b}
+              className={b === bucket ? "" : "secondary"}
+              onClick={() => setBucket(b)}
+              style={{ padding: "4px 10px", fontSize: 12 }}
+            >
+              {b === "hour" ? "按小时" : "按日"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {timeseries ? (
+        <TokenChart data={timeseries} />
+      ) : (
+        <div className="empty">加载中…</div>
+      )}
 
       <h3>按模型统计</h3>
       {stats && stats.rows.length > 0 ? (

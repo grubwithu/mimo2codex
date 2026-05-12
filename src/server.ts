@@ -3,7 +3,11 @@ import type { Config } from "./config.js";
 import { respToResponses } from "./translate/respToResponses.js";
 import { pipeChatStreamToResponses, type StreamPipelineResult } from "./translate/streamToSse.js";
 import { iterChatStreamChunks } from "./upstream/chatStream.js";
-import { callOpenAICompat, UpstreamError } from "./upstream/openaiCompatClient.js";
+import {
+  callOpenAICompat,
+  callResponsesPassthrough,
+  UpstreamError,
+} from "./upstream/openaiCompatClient.js";
 import { byClientModel, PROVIDER_LIST, PROVIDERS } from "./providers/registry.js";
 import type { Provider, ProviderRuntime } from "./providers/types.js";
 import { makeServerResponseSink } from "./util/sse.js";
@@ -237,6 +241,7 @@ async function handleResponses(
     baseUrl: runtime.baseUrl,
     clientModel: payload.model,
     upstreamModel,
+    wireApi: provider.wireApi ?? "chat",
   });
   if (rewriteNotice) {
     log.warn("client model rewritten on the way upstream", {
@@ -244,6 +249,15 @@ async function handleResponses(
       from: rewriteNotice.from,
       to: rewriteNotice.to,
       reason: rewriteNotice.reason,
+    });
+  }
+
+  if (provider.wireApi === "responses") {
+    return await handleResponsesPassthrough(cfg, req, res, payload, {
+      provider,
+      runtime,
+      upstreamModel,
+      rewriteNotice,
     });
   }
 
@@ -426,6 +440,221 @@ async function handleResponses(
       error_snippet: streamError ? streamError.message : rewriteLogFields.error_snippet,
       response_body: bodyForLog(pipeResult?.response),
       tool_call_count: pipeResult?.toolCallCount ?? null,
+    });
+  }
+}
+
+// wireApi === "responses" path: forward Codex's Responses payload directly to
+// the upstream's /v1/responses endpoint, with no Chat-Completions translation.
+// Streaming pipes raw SSE bytes; non-streaming JSON is forwarded verbatim.
+async function handleResponsesPassthrough(
+  cfg: Config,
+  req: IncomingMessage,
+  res: ServerResponse,
+  payload: ResponsesRequest,
+  selected: {
+    provider: Provider;
+    runtime: ProviderRuntime;
+    upstreamModel: string;
+    rewriteNotice: SelectedProvider["rewriteNotice"];
+  }
+): Promise<void> {
+  const { provider, runtime, upstreamModel, rewriteNotice } = selected;
+  const stream = !!payload.stream;
+
+  const preprocessed =
+    provider.preprocessResponsesPassthrough?.(payload, {
+      runtime,
+      exposeReasoning: cfg.exposeReasoning,
+    }) ?? payload;
+  // The routing layer determined upstreamModel; honor it over whatever the
+  // provider hook returned. preprocess hooks shouldn't normally rewrite model.
+  const forwardBody: ResponsesRequest = {
+    ...preprocessed,
+    model: upstreamModel,
+    stream,
+  };
+
+  const ac = new AbortController();
+  req.on("close", () => ac.abort());
+
+  const startedAt = Date.now();
+  const requestBodySnapshot = bodyForLog(payload);
+  const rewriteLogFields = rewriteNotice
+    ? (() => {
+        const w = rewriteWarning(rewriteNotice);
+        return { error_code: w.code, error_snippet: w.message };
+      })()
+    : { error_code: null, error_snippet: null };
+  const baseEntry = {
+    request_id: null as string | null,
+    provider_id: provider.id,
+    client_model: payload.model,
+    upstream_model: upstreamModel,
+    endpoint: "/v1/responses",
+    stream,
+    request_body: requestBodySnapshot,
+  };
+
+  // Non-streaming path: parse upstream JSON and forward verbatim.
+  if (!stream) {
+    try {
+      const upstreamRes = await callResponsesPassthrough(
+        {
+          baseUrl: runtime.baseUrl,
+          apiKey: runtime.apiKey,
+          userAgent: cfg.userAgent,
+          enhanceError: provider.enhanceError.bind(provider),
+        },
+        forwardBody,
+        ac.signal
+      );
+      const json = (await upstreamRes.json()) as Record<string, unknown>;
+      sendJson(res, 200, json);
+      const usage = (json.usage ?? {}) as Record<string, unknown>;
+      recordLog(cfg, {
+        ...baseEntry,
+        request_id: typeof json.id === "string" ? json.id : null,
+        status_code: 200,
+        duration_ms: Date.now() - startedAt,
+        prompt_tokens: typeof usage.input_tokens === "number" ? usage.input_tokens : null,
+        completion_tokens:
+          typeof usage.output_tokens === "number" ? usage.output_tokens : null,
+        total_tokens: typeof usage.total_tokens === "number" ? usage.total_tokens : null,
+        ...rewriteLogFields,
+        response_body: bodyForLog(json),
+        tool_call_count: null,
+      });
+      return;
+    } catch (err) {
+      if (err instanceof UpstreamError) {
+        sendJson(res, err.status, errorEnvelope(err.status, err.code, err.message));
+        recordLog(cfg, {
+          ...baseEntry,
+          status_code: err.status,
+          duration_ms: Date.now() - startedAt,
+          prompt_tokens: null,
+          completion_tokens: null,
+          total_tokens: null,
+          error_code: err.code,
+          error_snippet: err.bodySnippet ?? err.message,
+          response_body: null,
+          tool_call_count: null,
+        });
+        return;
+      }
+      log.error("responses passthrough non-stream failed", { error: (err as Error).message });
+      sendJson(res, 500, errorEnvelope(500, "internal_error", (err as Error).message));
+      recordLog(cfg, {
+        ...baseEntry,
+        status_code: 500,
+        duration_ms: Date.now() - startedAt,
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        error_code: "internal_error",
+        error_snippet: (err as Error).message,
+        response_body: null,
+        tool_call_count: null,
+      });
+      return;
+    }
+  }
+
+  // Streaming path: pipe upstream SSE bytes directly to the client.
+  let upstreamRes: Response;
+  try {
+    upstreamRes = await callResponsesPassthrough(
+      {
+        baseUrl: runtime.baseUrl,
+        apiKey: runtime.apiKey,
+        userAgent: cfg.userAgent,
+        enhanceError: provider.enhanceError.bind(provider),
+      },
+      forwardBody,
+      ac.signal
+    );
+  } catch (err) {
+    if (err instanceof UpstreamError) {
+      sendJson(res, err.status, errorEnvelope(err.status, err.code, err.message));
+      recordLog(cfg, {
+        ...baseEntry,
+        status_code: err.status,
+        duration_ms: Date.now() - startedAt,
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        error_code: err.code,
+        error_snippet: err.bodySnippet ?? err.message,
+        response_body: null,
+        tool_call_count: null,
+      });
+      return;
+    }
+    log.error("responses passthrough stream pre-request failed", {
+      error: (err as Error).message,
+    });
+    sendJson(res, 500, errorEnvelope(500, "internal_error", (err as Error).message));
+    recordLog(cfg, {
+      ...baseEntry,
+      status_code: 500,
+      duration_ms: Date.now() - startedAt,
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+      error_code: "internal_error",
+      error_snippet: (err as Error).message,
+      response_body: null,
+      tool_call_count: null,
+    });
+    return;
+  }
+
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  const keepalive = setInterval(() => {
+    if (!res.writableEnded) res.write(": keepalive\n\n");
+  }, KEEPALIVE_INTERVAL_MS);
+  res.on("close", () => clearInterval(keepalive));
+
+  let streamError: Error | null = null;
+  try {
+    if (!upstreamRes.body) {
+      throw new Error("upstream responded without a body");
+    }
+    const reader = upstreamRes.body.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value && value.length > 0) {
+        res.write(Buffer.from(value));
+      }
+    }
+    if (!res.writableEnded) res.end();
+  } catch (err) {
+    streamError = err as Error;
+    log.error("responses passthrough mid-stream failed", { error: streamError.message });
+    if (!res.writableEnded) {
+      res.write(
+        `event: error\ndata: ${JSON.stringify({ type: "error", code: "server_error", message: streamError.message, sequence_number: 9999 })}\n\n`
+      );
+      res.end();
+    }
+  } finally {
+    clearInterval(keepalive);
+    recordLog(cfg, {
+      ...baseEntry,
+      status_code: streamError ? 500 : 200,
+      duration_ms: Date.now() - startedAt,
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+      error_code: streamError ? "stream_error" : rewriteLogFields.error_code,
+      error_snippet: streamError ? streamError.message : rewriteLogFields.error_snippet,
+      response_body: null,
+      tool_call_count: null,
     });
   }
 }

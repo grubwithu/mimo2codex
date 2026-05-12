@@ -26,6 +26,7 @@
   "files": [
     "dist",
     "mimoskill",
+    "doc",
     "AGENTS.md",
     "README.md",
     "README.zh.md",
@@ -46,9 +47,9 @@
     "test:watch": "vitest",
     "prepack": "npm run build:all",
     "prepublishOnly": "npm run build:all && npm test",
-    "release:patch": "npm version patch && git push --follow-tags",
-    "release:minor": "npm version minor && git push --follow-tags",
-    "release:major": "npm version major && git push --follow-tags"
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

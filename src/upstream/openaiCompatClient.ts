@@ -1,4 +1,4 @@
-import type { ChatRequest } from "../translate/types.js";
+import type { ChatRequest, ResponsesRequest } from "../translate/types.js";
 import { log, redactKey } from "../util/log.js";
 import type { ProviderEnhancedError } from "../providers/types.js";
 
@@ -25,9 +25,10 @@ export class UpstreamError extends Error {
   }
 }
 
-function buildUrl(baseUrl: string): string {
+function buildUrl(baseUrl: string, path: string): string {
   const trimmed = baseUrl.replace(/\/+$/, "");
-  return `${trimmed}/chat/completions`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${trimmed}${normalizedPath}`;
 }
 
 function authHeader(apiKey: string): Record<string, string> {
@@ -58,21 +59,53 @@ export async function callOpenAICompat(
   body: ChatRequest,
   signal: AbortSignal
 ): Promise<Response> {
-  const url = buildUrl(cfg.baseUrl);
+  return await postUpstream(cfg, "/chat/completions", body, signal, {
+    summary: {
+      model: body.model,
+      stream: !!body.stream,
+      messages: body.messages.length,
+      tools: body.tools?.length ?? 0,
+    },
+    streaming: !!body.stream,
+  });
+}
+
+// Direct Responses-API passthrough. Used when Provider.wireApi === "responses"
+// — the body is sent untouched to the upstream's /v1/responses endpoint.
+// Lets generic providers that natively speak the Codex Responses API skip
+// the Chat-Completions translation round-trip.
+export async function callResponsesPassthrough(
+  cfg: UpstreamConfig,
+  body: ResponsesRequest,
+  signal: AbortSignal
+): Promise<Response> {
+  return await postUpstream(cfg, "/responses", body, signal, {
+    summary: {
+      model: body.model,
+      stream: !!body.stream,
+      inputItems: Array.isArray(body.input) ? body.input.length : 0,
+      tools: body.tools?.length ?? 0,
+    },
+    streaming: !!body.stream,
+  });
+}
+
+async function postUpstream(
+  cfg: UpstreamConfig,
+  path: string,
+  body: unknown,
+  signal: AbortSignal,
+  meta: { summary: Record<string, unknown>; streaming: boolean }
+): Promise<Response> {
+  const url = buildUrl(cfg.baseUrl, path);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Accept: body.stream ? "text/event-stream" : "application/json",
+    Accept: meta.streaming ? "text/event-stream" : "application/json",
     "User-Agent": cfg.userAgent,
     ...authHeader(cfg.apiKey),
   };
 
-  log.debug(`upstream POST ${url}`, {
-    model: body.model,
-    stream: !!body.stream,
-    messages: body.messages.length,
-    tools: body.tools?.length ?? 0,
-    apiKey: redactKey(cfg.apiKey),
-  });
+  log.debug(`upstream POST ${url}`, { ...meta.summary, apiKey: redactKey(cfg.apiKey) });
   log.debug("upstream POST body", body);
 
   const attempt = async (): Promise<Response> => {
