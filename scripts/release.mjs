@@ -35,18 +35,23 @@ try {
 const looksLikeVersionBump = /^v?\d+\.\d+\.\d+(\s|$)/.test(lastSubject);
 const ctxSuffix = lastSubject && !looksLikeVersionBump ? ` - ${lastSubject}` : "";
 
-function run(cmd, args) {
-  const r = spawnSync(cmd, args, { stdio: "inherit", cwd: repoRoot });
+function run(cmd, args, { shell = false } = {}) {
+  const r = spawnSync(cmd, args, { stdio: "inherit", cwd: repoRoot, shell });
+  if (r.error) {
+    console.error(`[release] failed to start: ${cmd}`, r.error.message);
+    process.exit(1);
+  }
   if (r.status !== 0) {
-    console.error(`[release] command failed: ${cmd} ${args.join(" ")}`);
+    console.error(`[release] command failed (exit ${r.status}): ${cmd} ${args.join(" ")}`);
     process.exit(r.status ?? 1);
   }
 }
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-
 // 1. Bump version in package.json (+ package-lock.json if present); no commit, no tag.
-run(npm, ["version", bump, "--no-git-tag-version"]);
+// npm on Windows is npm.cmd — Node's spawn can't launch .cmd files directly,
+// so we go through the shell. These args are all simple ASCII so re-parsing
+// by cmd.exe is harmless.
+run("npm", ["version", bump, "--no-git-tag-version"], { shell: true });
 
 // 2. Read the new version.
 const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
