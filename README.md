@@ -1,6 +1,20 @@
 # mimo2codex
 
-> English · [中文文档](./README.zh.md)
+<p align="center">
+  <a href="./README.md"><strong>English</strong></a> ·
+  <a href="./README.zh.md">简体中文</a> ·
+  <a href="./doc/mimoskill.md">mimoskill</a> ·
+  <a href="./doc/generic-providers.md">Generic Providers</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/7as0nch/mimo2codex/stargazers"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/7as0nch/mimo2codex?style=flat-square&logo=github"></a>
+  <a href="https://www.npmjs.com/package/mimo2codex"><img alt="npm version" src="https://img.shields.io/npm/v/mimo2codex?style=flat-square&logo=npm"></a>
+  <a href="https://www.npmjs.com/package/mimo2codex"><img alt="downloads" src="https://img.shields.io/npm/dt/mimo2codex?style=flat-square&color=brightgreen"></a>
+  <img alt="license" src="https://img.shields.io/github/license/7as0nch/mimo2codex?style=flat-square">
+  <img alt="node" src="https://img.shields.io/badge/Node-18%2B-blue?style=flat-square&logo=node.js&logoColor=white">
+  <img alt="wire_api" src="https://img.shields.io/badge/wire__api-responses-black?style=flat-square">
+</p>
 
 Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtually any modern LLM. Built-in support for **Xiaomi MiMo V2.5** and **DeepSeek V4 Pro**, plus a **generic provider mechanism** that connects any **OpenAI Chat Completions-compatible** (Qwen / GLM / Kimi / vLLM / Ollama / LM Studio …) or **native Responses API** (OpenAI itself) upstream — no code changes, no re-publish needed. Translates Codex's Responses API ↔ upstream Chat Completions on the fly, per-request routing by `model` field, optional admin web console, runs on `127.0.0.1`.
 
@@ -16,7 +30,6 @@ Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtuall
 - [Use](#use) — get a key, start the proxy, configure Codex
 - [Use with cc-switch](#use-with-cc-switch)
 - [Admin console](#admin-console) — dashboard, logs, models, settings
-  - [Enabling 1M long context](#enabling-1m-long-context)
   - [Providers and model ids](#providers-and-model-ids)
   - [Plugging in third-party OpenAI-compatible upstreams](#plugging-in-third-party-openai-compatible-upstreams) — Qwen / GLM / Kimi / Ollama / OpenAI
 - [CLI flags](#cli-flags)
@@ -40,7 +53,7 @@ Conceptually a sibling of [openrouter](https://openrouter.ai), [claude-code-rout
 - ✅ Codex CLI `wire_api = "responses"` and Codex desktop app
 - ✅ Multi-provider — **MiMo** + **DeepSeek**, mixed within one process (per-request routing by `model` field)
 - ✅ **Generic OpenAI-compatible providers** — Qwen / GLM / Kimi / Ollama / native-Responses OpenAI, declare in `providers.json` and they just work. See [doc/generic-providers.md](./doc/generic-providers.md)
-- ✅ MiMo models: `mimo-v2.5-pro` / `mimo-v2.5-pro[1m]` / `mimo-v2-flash`
+- ✅ MiMo models: `mimo-v2.5-pro` / `mimo-v2-flash`
 - ✅ DeepSeek models: `deepseek-v4-pro` (default) / `deepseek-v4-flash` / `deepseek-chat` / `deepseek-reasoner`
 - ✅ Tool calling — function tools, parallel calls, `local_shell`, `custom`, MCP `namespace`
 - ✅ Web search — translated to MiMo's native `web_search` builtin (requires plugin activation); auto-skipped on DeepSeek
@@ -149,7 +162,7 @@ Pet, tool calls, reasoning, multi-turn — all just work. Pass `--no-reasoning` 
 3. cc-switch GUI → **Codex** tab → **+** → **Custom** → paste both blocks → name it `MiMo (via mimo2codex)` → **Add**
 4. Click the new provider to activate it; cc-switch writes Codex's config files for you. Switch back to OpenAI / Azure / OpenRouter anytime — mimo2codex keeps running and only gets traffic when its provider is active.
 
-cc-switch's "Fetch Models" button calls `/v1/models`, which mimo2codex implements — the dropdown auto-lists `mimo-v2.5-pro`, `mimo-v2.5-pro[1m]`, `mimo-v2-flash`.
+cc-switch's "Fetch Models" button calls `/v1/models`, which mimo2codex implements — the dropdown auto-lists `mimo-v2.5-pro` and `mimo-v2-flash`.
 
 ## Admin console
 
@@ -169,37 +182,11 @@ Browse to `http://127.0.0.1:8788/admin/` after start.
 
 Data lives in sqlite (`~/.mimo2codex/data.db`); override with `--data-dir <path>` or disable entirely with `--no-admin`.
 
-### Enabling 1M long context
-
-The Codex client **doesn't read the context window from the proxy** — it reads `model_context_window` from `config.toml`. When unset, Codex falls back to ~256K, so even when the proxy forwards to `mimo-v2.5-pro[1m]` or `deepseek-v4-pro`, the bottom-left context badge stays at 258K.
-
-`mimo2codex print-config` already emits `model_context_window` for the default model and lists every builtin variant for that provider in an inline comment block:
-
-```toml
-model = "mimo-v2.5-pro"
-model_provider = "mimo"
-model_context_window = 128000
-
-# Switch model — replace the two lines above with one entry below.
-# Available MiMo (via mimo2codex) models:
-#   model = "mimo-v2.5-pro"   model_context_window = 128000 (current)
-#   model = "mimo-v2.5-pro[1m]"   model_context_window = 1000000
-#   model = "mimo-v2-flash"   model_context_window = 128000
-```
-
-To use 1M, replace the `model =` and `model_context_window =` pair with the 1M entry from the list. cc-switch users can edit the same lines directly in cc-switch's textarea — no proxy restart needed.
-
-After writing to `~/.codex/config.toml`, **fully quit and relaunch Codex** (desktop: system tray → Quit, not just close the window).
-
-> ⚠ **Whether 1M actually engages depends on two things outside the proxy**:
-> 1. **Your upstream account** — for instance MiMo's `mimo-v2.5-pro[1m]` is gated on certain plans; you'll see upstream `400 "Not supported model"` if your account doesn't include it. Confirm with `curl https://api.xiaomimimo.com/v1/models -H "Authorization: Bearer $MIMO_API_KEY"`.
-> 2. **Your Codex client version** — older desktop builds ignore `model_context_window` and hard-cap at 256K. The CLI usually ships fixes earlier; if `codex` in a terminal shows 1M but the desktop badge still shows 258K, update the desktop app.
-
 ### Providers and model ids
 
 | Provider | Shortcut | Env var | Default base URL | Default model | Models |
 |---|---|---|---|---|---|
-| MiMo | `mimo` | `MIMO_API_KEY` | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | `mimo-v2.5-pro` / `mimo-v2.5-pro[1m]` / `mimo-v2-flash` |
+| MiMo | `mimo` | `MIMO_API_KEY` | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | `mimo-v2.5-pro` / `mimo-v2-flash` |
 | DeepSeek | `ds` | `DS_API_KEY` or `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` | `deepseek-v4-pro` | `deepseek-v4-pro` / `deepseek-v4-flash` / `deepseek-chat`* / `deepseek-reasoner`* |
 
 *legacy, deprecated 2026-07-24, both alias the v4-flash thinking / non-thinking modes.

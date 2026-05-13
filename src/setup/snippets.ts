@@ -78,13 +78,16 @@ export function alternativesComment(t: SnippetTarget): string {
   const lines: string[] = [];
   lines.push(
     `# Switch model — replace the two lines above (model = ... and`,
-    `# model_context_window = ...) with one of the entries below. The 1M variants`,
-    `# require (1) your account to actually offer them upstream, and (2) Codex`,
-    `# client to honor model_context_window (older versions cap at ~256K).`,
+    `# model_context_window = ...) with one of the entries below.`,
     `# Available ${provider.displayName} models:`
   );
   for (const m of provider.builtinModels) {
     if (m.deprecatedAfter) continue;
+    // Skip `[1m]` long-context variants — Codex doesn't actually honor
+    // model_context_window above its built-in cap, so advertising them as
+    // alternatives here just sets users up for disappointment. The variants
+    // still exist in the catalog for direct mimo_chat.py / API use.
+    if (m.id.endsWith("[1m]")) continue;
     const ctx = m.contextWindow ? `   model_context_window = ${m.contextWindow}` : "";
     const modelMaxOut =
       m.maxOutputTokens ?? (t.providerId === "deepseek" ? deepseekMaxOutput() : undefined);

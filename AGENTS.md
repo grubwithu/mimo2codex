@@ -30,7 +30,7 @@ adjust your assumptions accordingly.
    depends on it.
 
 4. **Non-vision model + image input → don't give up, OCR it.** When the
-   active chat model is `mimo-v2.5-pro`, `mimo-v2.5-pro[1m]`, `mimo-v2-flash`,
+   active chat model is `mimo-v2.5-pro`, `mimo-v2-flash`, `deepseek-*`,
    or any third-party model without vision, the proxy strips image
    attachments in `src/translate/reqToChat.ts:48-72` and leaves a
    `[N image attachment(s) omitted: this model does not support image input …]`

@@ -29,7 +29,6 @@ Quick answer:
 | Capability | MiMo native | Best model | Notes |
 |---|---|---|---|
 | Text chat | ✅ | `mimo-v2.5-pro` | reasoning + tools |
-| 1M context | ✅ | `mimo-v2.5-pro[1m]` | append `[1m]` suffix |
 | Tool / function calling | ✅ | any | parallel calls supported |
 | Vision (image input) | ✅ | `mimo-v2.5` or `mimo-v2-omni` | NOT mimo-v2.5-pro |
 | Web search | ✅ | any | requires Web Search Plugin activated in MiMo console |
@@ -82,7 +81,7 @@ For non-trivial integrations, [references/models.md](references/models.md) and [
 
 ## OCR / image recognition (when the chat model can't see images)
 
-If the user wants to **read text from an image** or **describe / 识别 an image** but the current chat model is non-vision (`mimo-v2.5-pro`, `mimo-v2.5-pro[1m]`, `mimo-v2-flash`, `deepseek-*`, or any third-party text-only model), invoke `scripts/ocr.py`. Three engines, `--engine auto` (default) picks in this order — mimo if `MIMO_API_KEY` set, else tesseract if installed and mode=text, else pollinations:
+If the user wants to **read text from an image** or **describe / 识别 an image** but the current chat model is non-vision (`mimo-v2.5-pro`, `mimo-v2-flash`, `deepseek-*`, or any third-party text-only model), invoke `scripts/ocr.py`. Three engines, `--engine auto` (default) picks in this order — mimo if `MIMO_API_KEY` set, else tesseract if installed and mode=text, else pollinations:
 
 - **`mimo`** — needs `MIMO_API_KEY`, uses `mimo-v2.5` regardless of the chat model. Best quality. All modes.
 - **`tesseract`** — **no key, no network**. Fully local OCR. Auto-used if installed and `--mode text`. Recommended for users behind GFW or offline. One-time install: `brew install tesseract tesseract-lang` / `sudo apt install tesseract-ocr tesseract-ocr-chi-sim` / Windows installer at github.com/UB-Mannheim/tesseract/wiki.
