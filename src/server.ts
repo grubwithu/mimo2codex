@@ -71,7 +71,7 @@ function errorEnvelope(status: number, code: string, message: string): {
   };
 }
 
-interface SelectedProvider {
+export interface SelectedProvider {
   provider: Provider;
   runtime: ProviderRuntime;
   upstreamModel: string;
@@ -151,7 +151,7 @@ function countToolCallsInChatResponse(resp: ChatResponse | undefined): number | 
 // so checking the id reliably distinguishes built-ins from user-declared generics.
 const BUILTIN_IDS = new Set(BUILTIN_PROVIDERS.map((p) => p.id));
 
-function selectProvider(clientModel: string, cfg: Config): SelectedProvider {
+export function selectProvider(clientModel: string, cfg: Config): SelectedProvider {
   // Pass 1: user-declared generic providers (non-empty models, has key).
   // Generics take priority over built-ins so that an internal MiMo/DeepSeek
   // proxy declared as a generic can serve the same model names (e.g.

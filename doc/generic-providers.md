@@ -135,7 +135,7 @@ Each `models[]` entry:
 
 **1. With declared `models[]` (strict mode)**
 
-Only ids in `models[]` (or their aliases) are considered "owned" by this provider. `byClientModel` routes by exact match. If the client sends an unlisted id:
+Only ids in `models[]` (or their aliases) are considered "owned" by this provider. Requests are routed to the provider whose catalog exactly matches the client-supplied model id. If the client sends an unlisted id:
 - And this provider is the **default** → rewrite to `defaultModel`, log a `rewriteNotice`
 - Otherwise → falls through to the default provider's fallback
 
@@ -147,7 +147,17 @@ Whatever model id the client sends, forward verbatim. **No rewriting, no errors.
 
 Good for: upstreams with fast-changing catalogs (Ollama, OpenRouter), when you just want a pipe.
 
-> Open-catalog generics are **not** auto-matched by `byClientModel` — otherwise they'd "swallow" every mimo / deepseek id. To route to them, set them as the default provider with `--model <id>`.
+> Open-catalog generics are **not** auto-matched by model id — otherwise they'd "swallow" every mimo / deepseek id. To route to them, set them as the default provider with `--model <id>`.
+
+### Routing priority
+
+The same model id may be declared by multiple providers (typical case: you spun up a generic provider for your internal MiMo proxy and listed `mimo-v2.5-pro` in its `models[]`). `selectProvider` picks in this order:
+
+1. **User-declared generics with a key** (non-empty `models[]`), in registration order
+2. **Built-in providers with a key** (mimo / deepseek)
+3. **Default-provider fallback** — model id is rewritten to the default provider's `defaultModel`, with a `rewriteNotice` warning logged
+
+Step 1 prioritizes user-declared generics over built-ins so that the "internal proxy" case works: if you only set `COMPANY_MIMO_API_KEY` (no `MIMO_API_KEY`), a client request for `mimo-v2.5-pro` still routes to your generic (instead of falling through to the default provider because the built-in mimo has no key). If multiple keyed generics declare the same model id, the first one registered wins.
 
 ## wireApi explained
 

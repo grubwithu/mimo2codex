@@ -135,7 +135,7 @@ mimo2codex --model qwen        # 默认 provider 是 qwen
 
 **1. 声明了 `models[]`（严格模式）**
 
-只有列在 `models[]` 里的 id（及 alias）才算"属于这个 provider"。`byClientModel` 路由按列表精确匹配。客户端发了未在列表里的 id：
+只有列在 `models[]` 里的 id（及 alias）才算"属于这个 provider"。请求按 model id 精确匹配到 provider。客户端发了未在列表里的 id：
 - 如果该 provider 是**默认** provider → 把 model 重写为 `defaultModel`，并在日志里记一条 `rewriteNotice`
 - 否则不命中，走默认 provider 的兜底
 
@@ -147,7 +147,17 @@ mimo2codex --model qwen        # 默认 provider 是 qwen
 
 适合：上游模型清单变化快（Ollama、OpenRouter 这类聚合服务），或者你只想"管道"功能，不想每加一个模型就改配置。
 
-> 任意透传 provider **不会** 被 `byClientModel` 自动命中——避免它"吞掉"所有 mimo / deepseek 的模型。要路由到它，必须把它设为默认 provider（`--model <id>`）。
+> 任意透传 provider **不会** 被自动 model-id 匹配命中——避免它"吞掉"所有 mimo / deepseek 的模型。要路由到它，必须把它设为默认 provider（`--model <id>`）。
+
+### 路由优先级
+
+同一个 model id 可能被多个 provider 声明（典型场景：你为内部 MiMo 代理建了个 generic provider，`models[]` 里也写了 `mimo-v2.5-pro`）。`selectProvider` 按下面的顺序挑：
+
+1. **带 key 的用户自定义 generic**（`models[]` 非空），按注册顺序匹配
+2. **带 key 的内置 provider**（mimo / deepseek）
+3. **默认 provider 兜底**——这里会把 model id 重写为默认 provider 的 `defaultModel`，并伴随一条 `rewriteNotice` 警告日志
+
+第 1 步把 generic 排在内置前面，是为了让"内部代理"场景能正常工作：当你只配了 `COMPANY_MIMO_API_KEY`、没配 `MIMO_API_KEY` 时，客户端发 `mimo-v2.5-pro` 仍然能路由到你的 generic（而不是因为内置 mimo 没 key 就掉到默认 provider）。如果同一 model id 被多个带 key 的 generic 声明，最先注册的赢。
 
 ## wireApi 详解
 
