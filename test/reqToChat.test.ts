@@ -973,3 +973,162 @@ describe("reqToChat", () => {
     expect(a?.reasoning_content).toBe("full version");
   });
 });
+
+// Covers the symmetric counterpart of "missing function_call_output …
+// placeholder" above. The mirror direction — orphan function_call_output
+// items in history (Codex desync after Esc / Ctrl+C, openai/codex#8479) —
+// was triggering an unrecoverable DeepSeek 400 (mimo2codex#8). The scrub
+// is now in inputItemsToMessages right before ensureToolCallsHaveOutputs.
+describe("reqToChat — orphan tool message scrub (PR #10 regression)", () => {
+  it("drops a tool message whose tool_call_id has no preceding assistant.tool_calls", () => {
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "hi" },
+        // Orphan: no assistant.tool_calls before it.
+        {
+          type: "function_call_output",
+          call_id: "call_orphan_001",
+          output: "stale",
+        },
+        { type: "message", role: "user", content: "now do A" },
+        {
+          type: "function_call",
+          call_id: "call_A",
+          name: "shell",
+          arguments: '{"cmd":"A"}',
+        },
+        { type: "function_call_output", call_id: "call_A", output: "ra" },
+      ],
+    };
+    const chat = reqToChat(req);
+    const toolMsgs = chat.messages.filter((m) => m.role === "tool");
+    // call_orphan_001 must be gone; call_A's output must survive.
+    expect(toolMsgs.map((m) => m.tool_call_id)).toEqual(["call_A"]);
+    // And the assistant.tool_calls/tool pairing invariant still holds.
+    const idxAsst = chat.messages.findIndex(
+      (m) => m.role === "assistant" && m.tool_calls?.length
+    );
+    expect(idxAsst).toBeGreaterThanOrEqual(0);
+    expect(chat.messages[idxAsst + 1]?.role).toBe("tool");
+    expect(chat.messages[idxAsst + 1]?.tool_call_id).toBe("call_A");
+  });
+
+  it("drops a tool message whose tool_call_id does not match the preceding assistant.tool_calls", () => {
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "do A" },
+        {
+          type: "function_call",
+          call_id: "call_A",
+          name: "shell",
+          arguments: '{"cmd":"A"}',
+        },
+        { type: "function_call_output", call_id: "call_A", output: "ra" },
+        // Next assistant declares only call_B; a stray output for the
+        // earlier call_A reappearing here is an orphan in this scope.
+        // We synthesize that scenario with a second turn.
+        { type: "message", role: "user", content: "now do B" },
+        {
+          type: "function_call",
+          call_id: "call_B",
+          name: "shell",
+          arguments: '{"cmd":"B"}',
+        },
+        // mismatched id — refers to call_A but appears after the B-only assistant turn
+        { type: "function_call_output", call_id: "call_A", output: "stale-A" },
+        { type: "function_call_output", call_id: "call_B", output: "rb" },
+      ],
+    };
+    const chat = reqToChat(req);
+    // call_A output for the FIRST turn must survive; the SECOND occurrence
+    // (mismatched, after the B-only assistant) must be dropped.
+    const toolMsgs = chat.messages.filter((m) => m.role === "tool");
+    const ids = toolMsgs.map((m) => m.tool_call_id);
+    // Expect: [call_A (turn 1), call_B (turn 2)] — orphan call_A from turn 2 removed.
+    expect(ids).toEqual(["call_A", "call_B"]);
+  });
+
+  it("validity window resets on a user message — a tool message after user but before any assistant.tool_calls is dropped", () => {
+    // assistant(tool_calls=A) → tool(A) ✓ → user(...) → tool(A again) ✗ orphan
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "do A" },
+        {
+          type: "function_call",
+          call_id: "call_A",
+          name: "shell",
+          arguments: '{"cmd":"A"}',
+        },
+        { type: "function_call_output", call_id: "call_A", output: "ra" },
+        { type: "message", role: "user", content: "anything else?" },
+        // After a user message — validity window must reset, so this is orphan.
+        { type: "function_call_output", call_id: "call_A", output: "replay" },
+      ],
+    };
+    const chat = reqToChat(req);
+    const toolMsgs = chat.messages.filter((m) => m.role === "tool");
+    expect(toolMsgs).toHaveLength(1);
+    expect(toolMsgs[0].tool_call_id).toBe("call_A");
+    expect(toolMsgs[0].content).toBe("ra");
+  });
+
+  it("parallel tool_calls: keeps valid outputs, drops orphan ones in the same window", () => {
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "do A and B in parallel" },
+        {
+          type: "function_call",
+          call_id: "call_A",
+          name: "shell",
+          arguments: '{"cmd":"A"}',
+        },
+        {
+          type: "function_call",
+          call_id: "call_B",
+          name: "shell",
+          arguments: '{"cmd":"B"}',
+        },
+        { type: "function_call_output", call_id: "call_A", output: "ra" },
+        // Orphan: call_GHOST was never declared.
+        {
+          type: "function_call_output",
+          call_id: "call_GHOST",
+          output: "noise",
+        },
+        { type: "function_call_output", call_id: "call_B", output: "rb" },
+      ],
+    };
+    const chat = reqToChat(req);
+    const toolMsgs = chat.messages.filter((m) => m.role === "tool");
+    expect(toolMsgs.map((m) => m.tool_call_id)).toEqual(["call_A", "call_B"]);
+  });
+
+  it("regression: well-formed assistant.tool_calls + tool pair is unchanged", () => {
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "do A" },
+        {
+          type: "function_call",
+          call_id: "call_A",
+          name: "shell",
+          arguments: '{"cmd":"A"}',
+        },
+        { type: "function_call_output", call_id: "call_A", output: "ra" },
+      ],
+    };
+    const chat = reqToChat(req);
+    const idxAsst = chat.messages.findIndex(
+      (m) => m.role === "assistant" && m.tool_calls?.length
+    );
+    expect(idxAsst).toBeGreaterThanOrEqual(0);
+    expect(chat.messages[idxAsst].tool_calls?.[0].id).toBe("call_A");
+    expect(chat.messages[idxAsst + 1].role).toBe("tool");
+    expect(chat.messages[idxAsst + 1].tool_call_id).toBe("call_A");
+    expect(chat.messages[idxAsst + 1].content).toBe("ra");
+  });
+});
