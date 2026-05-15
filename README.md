@@ -22,8 +22,9 @@ Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtuall
 > 📌 **Heads-up for MiMo users**: per [MiMo's official advisory](https://platform.xiaomimimo.com/docs/zh-CN/usage-guide/passing-back-reasoning_content), every assistant message with `tool_calls` must echo back its original `reasoning_content` on the next turn — otherwise MiMo returns **400** or silently degrades into hallucination (agent rambles instead of calling tools, burning tokens). Codex is on MiMo's list of affected products. **mimo2codex ≥ 0.2.3 handles this round-trip automatically**; older versions and most other Codex-side proxies don't. If you hit the symptoms, [upgrade](#troubleshooting).
 
 <details>
-<summary>🆕 <b>What's new / changelog</b> (click to expand)</summary>
+<summary>🆕 <b>What's new / v0.2.7 (2026-05-15) · webui overhaul + probe / cache hits</b> (click to expand)</summary>
 
+- **v0.2.7 (2026-05-15) · webui overhaul + toolchain polish**: full admin webui rewrite on **Ant Design 5** (dark/light themes, EN/中文 i18n, viewport-locked layout with fixed sider + footer, smoothed Token-usage curves); new `.env.example` + **Bash / PowerShell one-liner scripts** that inject keys into the shell (`.env` is gitignored); per-model **⚡Probe** button on the "Enable Codex" page that fires a minimal ping to validate key / baseUrl / model id end-to-end; Token-usage chart now folds in a **cache-hit overlay** (green bars = cache hits, gray ghosts = prompt totals) plus a window-wide hit-rate summary; **customizable Codex dir** via settings or the `CODEX_HOME` env var.
 - **v0.2.6 (2026-05-14) · "Codex Enable" page**: one-click write of `~/.codex/auth.json` + `config.toml` from the admin webui — a **cc-switch replacement** for Codex-only users. Comes with a "runtime override" mode (swap upstream models without restarting Codex). Old files are auto-backed-up, and **the first backup that captures your real OpenAI auth.json is permanently preserved** — switch models 100 times and you can still roll back to your original Codex config. See [doc/codex-enable.md](./doc/codex-enable.md).
 
 </details>
