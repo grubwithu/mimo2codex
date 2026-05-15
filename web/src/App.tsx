@@ -106,8 +106,13 @@ function Shell() {
   }, [location.pathname]);
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Sider width={220} breakpoint="lg" collapsedWidth={64}>
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
+      <Sider
+        width={220}
+        breakpoint="lg"
+        collapsedWidth={64}
+        style={{ height: "100vh", overflow: "auto" }}
+      >
         <div
           style={{
             color: "rgba(255,255,255,0.95)",
@@ -125,10 +130,18 @@ function Shell() {
           selectedKeys={[selectedKey]}
           items={items}
           onClick={(info) => navigate(info.key)}
+          style={{ borderInlineEnd: 0 }}
         />
       </Sider>
-      <Layout>
-        <Content style={{ padding: "24px 28px" }}>
+      <Layout style={{ height: "100vh" }}>
+        <Content
+          style={{
+            padding: "24px 28px",
+            overflow: "auto",
+            flex: "1 1 auto",
+            minHeight: 0,
+          }}
+        >
           <Routes>
             {MENU.map((m) => (
               <Route key={m.path} path={m.path} element={m.element} />
