@@ -1,7 +1,34 @@
-import { useEffect, useState } from "react";
-import { api, type ModelRow, type ProviderInfo, type AliasRow } from "../api/client";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Alert,
+  Button,
+  Card,
+  Form,
+  Input,
+  Modal,
+  Segmented,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import {
+  DeleteOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
+import {
+  api,
+  type AliasRow,
+  type ModelRow,
+  type ProviderInfo,
+} from "../api/client";
 
 export function Models() {
+  const { t } = useTranslation("models");
+  const [modal, modalCtx] = Modal.useModal();
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [active, setActive] = useState<string>("mimo");
   const [models, setModels] = useState<ModelRow[]>([]);
@@ -13,7 +40,11 @@ export function Models() {
   async function load() {
     try {
       setError(null);
-      const [p, m, a] = await Promise.all([api.providers(), api.modelsFor(active), api.aliases()]);
+      const [p, m, a] = await Promise.all([
+        api.providers(),
+        api.modelsFor(active),
+        api.aliases(),
+      ]);
       setProviders(p.providers);
       setModels(m.models);
       setAliases(a.aliases);
@@ -38,14 +69,20 @@ export function Models() {
     }
   }
 
-  async function removeModel(id: number) {
-    if (!confirm("删除该自定义模型？")) return;
-    try {
-      await api.deleteModel(id);
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    }
+  function removeModel(row: ModelRow) {
+    modal.confirm({
+      title: t("deleteConfirm"),
+      icon: <DeleteOutlined />,
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await api.deleteModel(row.id);
+          await load();
+        } catch (err) {
+          setError((err as Error).message);
+        }
+      },
+    });
   }
 
   async function addAlias() {
@@ -63,165 +100,253 @@ export function Models() {
     }
   }
 
-  async function removeAlias(alias: string) {
-    if (!confirm(`删除别名 "${alias}"？`)) return;
-    try {
-      await api.deleteAlias(alias);
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    }
+  function removeAlias(alias: string) {
+    modal.confirm({
+      title: t("alias.deleteConfirm", { alias }),
+      icon: <DeleteOutlined />,
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await api.deleteAlias(alias);
+          await load();
+        } catch (err) {
+          setError((err as Error).message);
+        }
+      },
+    });
   }
 
-  const aliasesForActive = aliases.filter((a) => a.provider_id === active);
+  const aliasesForActive = useMemo(
+    () => aliases.filter((a) => a.provider_id === active),
+    [aliases, active]
+  );
+
+  const modelColumns: ColumnsType<ModelRow> = useMemo(
+    () => [
+      {
+        title: t("list.columns.upstreamId"),
+        dataIndex: "upstream_id",
+        key: "upstream_id",
+        render: (v: string) => <code>{v}</code>,
+      },
+      {
+        title: t("list.columns.displayName"),
+        dataIndex: "display_name",
+        key: "display_name",
+        render: (v: string | null) => v ?? "—",
+      },
+      {
+        title: t("list.columns.capabilities"),
+        key: "capabilities",
+        render: (_, m) => (
+          <Space size={4} wrap>
+            {m.supports_images ? <Tag>{t("list.capability.vision")}</Tag> : null}
+            {m.supports_reasoning ? (
+              <Tag>{t("list.capability.reasoning")}</Tag>
+            ) : null}
+            {m.supports_web_search ? (
+              <Tag>{t("list.capability.webSearch")}</Tag>
+            ) : null}
+          </Space>
+        ),
+      },
+      {
+        title: t("list.columns.context"),
+        dataIndex: "context_window",
+        key: "context_window",
+        render: (v: number | null) => v?.toLocaleString() ?? "—",
+      },
+      {
+        title: t("list.columns.source"),
+        dataIndex: "is_builtin",
+        key: "is_builtin",
+        render: (v: number) =>
+          v ? (
+            <Tag>{t("list.source.builtin")}</Tag>
+          ) : (
+            <Tag color="success">{t("list.source.custom")}</Tag>
+          ),
+      },
+      {
+        title: t("list.columns.deprecated"),
+        dataIndex: "deprecated_after",
+        key: "deprecated_after",
+        render: (v: string | null) =>
+          v ? <Tag color="warning">{v}</Tag> : "—",
+      },
+      {
+        title: t("list.columns.ops"),
+        key: "ops",
+        align: "right",
+        render: (_, m) =>
+          m.is_builtin ? (
+            <Tag>{t("list.readonly")}</Tag>
+          ) : (
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => removeModel(m)}
+            >
+              {t("list.columns.ops")}
+            </Button>
+          ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t]
+  );
+
+  const aliasColumns: ColumnsType<AliasRow> = useMemo(
+    () => [
+      {
+        title: t("alias.columns.alias"),
+        dataIndex: "alias",
+        key: "alias",
+        render: (v: string) => <code>{v}</code>,
+      },
+      {
+        title: t("alias.columns.mapTo"),
+        dataIndex: "upstream_id",
+        key: "upstream_id",
+        render: (v: string) => <code>{v}</code>,
+      },
+      {
+        key: "ops",
+        align: "right",
+        render: (_, a) => (
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => removeAlias(a.alias)}
+          />
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t]
+  );
 
   return (
-    <div>
-      <h2>模型</h2>
+    <>
+      {modalCtx}
+      <Typography.Title level={2} style={{ marginTop: 0 }}>
+        {t("title")}
+      </Typography.Title>
 
       {error && (
-        <div className="banner err">
-          <span className="ic">!</span>
-          <div className="body">{error}</div>
-        </div>
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          closable
+          onClose={() => setError(null)}
+          style={{ marginBottom: 16 }}
+        />
       )}
 
-      <div className="row">
-        {providers.map((p) => (
-          <button
-            key={p.id}
-            className={p.id === active ? "" : "secondary"}
-            onClick={() => setActive(p.id)}
+      <Card style={{ marginBottom: 16 }}>
+        <Segmented<string>
+          value={active}
+          onChange={setActive}
+          options={providers.map((p) => ({
+            value: p.id,
+            label: (
+              <Space>
+                {p.display_name}
+                <Tag color={p.enabled ? "success" : "default"}>
+                  {p.enabled
+                    ? t("providerStatus.enabled")
+                    : t("providerStatus.missingKey")}
+                </Tag>
+              </Space>
+            ),
+          }))}
+        />
+      </Card>
+
+      <Card title={t("list.title")} style={{ marginBottom: 16 }}>
+        <Table<ModelRow>
+          rowKey="id"
+          dataSource={models}
+          columns={modelColumns}
+          pagination={false}
+          size="middle"
+        />
+      </Card>
+
+      <Card title={t("create.title")} style={{ marginBottom: 16 }}>
+        <Space wrap style={{ width: "100%" }}>
+          <Input
+            placeholder={t("create.upstreamPlaceholder")}
+            value={newModel.upstream_id}
+            onChange={(e) =>
+              setNewModel({ ...newModel, upstream_id: e.target.value })
+            }
+            style={{ width: 280 }}
+          />
+          <Input
+            placeholder={t("create.displayNamePlaceholder")}
+            value={newModel.display_name}
+            onChange={(e) =>
+              setNewModel({ ...newModel, display_name: e.target.value })
+            }
+            style={{ width: 220 }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => void addModel()}
+            disabled={!newModel.upstream_id}
           >
-            {p.display_name}{" "}
-            <span className={`tag ${p.enabled ? "ok" : "muted"}`}>
-              {p.enabled ? "已启用" : "未配置 key"}
-            </span>
-          </button>
-        ))}
-      </div>
+            {t("create.submit")}
+          </Button>
+        </Space>
+      </Card>
 
-      <h3>模型清单</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>upstream_id</th>
-            <th>显示名</th>
-            <th>能力</th>
-            <th>上下文</th>
-            <th>来源</th>
-            <th>过期</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {models.map((m) => (
-            <tr key={m.id}>
-              <td className="mono">{m.upstream_id}</td>
-              <td>{m.display_name ?? "—"}</td>
-              <td>
-                {m.supports_images ? <span className="tag">视觉</span> : null}{" "}
-                {m.supports_reasoning ? <span className="tag">推理</span> : null}{" "}
-                {m.supports_web_search ? <span className="tag">联网</span> : null}
-              </td>
-              <td>{m.context_window?.toLocaleString() ?? "—"}</td>
-              <td>
-                {m.is_builtin ? (
-                  <span className="tag">内置</span>
-                ) : (
-                  <span className="tag ok">自定义</span>
-                )}
-              </td>
-              <td>
-                {m.deprecated_after ? (
-                  <span className="tag warn">{m.deprecated_after}</span>
-                ) : (
-                  "—"
-                )}
-              </td>
-              <td>
-                {m.is_builtin ? (
-                  <span className="tag muted">只读</span>
-                ) : (
-                  <button className="danger" onClick={() => removeModel(m.id)}>
-                    删除
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <h3>新增自定义模型</h3>
-      <div className="row">
-        <input
-          className="grow"
-          placeholder="upstream_id（如 deepseek-v4-mini）"
-          value={newModel.upstream_id}
-          onChange={(e) => setNewModel({ ...newModel, upstream_id: e.target.value })}
+      <Card title={t("alias.title")}>
+        <Table<AliasRow>
+          rowKey="alias"
+          dataSource={aliasesForActive}
+          columns={aliasColumns}
+          pagination={false}
+          size="middle"
+          locale={{ emptyText: t("alias.empty") }}
         />
-        <input
-          className="grow"
-          placeholder="显示名（可选）"
-          value={newModel.display_name}
-          onChange={(e) => setNewModel({ ...newModel, display_name: e.target.value })}
-        />
-        <button onClick={addModel} disabled={!newModel.upstream_id}>
-          添加
-        </button>
-      </div>
-
-      <h3>别名（客户端 model 字段 → 上游 ID）</h3>
-      {aliasesForActive.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>别名</th>
-              <th>映射到</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {aliasesForActive.map((a) => (
-              <tr key={a.alias}>
-                <td className="mono">{a.alias}</td>
-                <td className="mono">{a.upstream_id}</td>
-                <td>
-                  <button className="danger" onClick={() => removeAlias(a.alias)}>
-                    删除
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <div className="empty">尚无别名</div>
-      )}
-
-      <div className="row">
-        <input
-          className="grow"
-          placeholder="别名（客户端发的 model）"
-          value={newAlias.alias}
-          onChange={(e) => setNewAlias({ ...newAlias, alias: e.target.value })}
-        />
-        <select
-          value={newAlias.upstream_id}
-          onChange={(e) => setNewAlias({ ...newAlias, upstream_id: e.target.value })}
-        >
-          <option value="">— 选择上游模型 —</option>
-          {models.map((m) => (
-            <option key={m.upstream_id} value={m.upstream_id}>
-              {m.upstream_id}
-            </option>
-          ))}
-        </select>
-        <button onClick={addAlias} disabled={!newAlias.alias || !newAlias.upstream_id}>
-          添加
-        </button>
-      </div>
-    </div>
+        <Form layout="inline" style={{ marginTop: 12 }} onFinish={() => void addAlias()}>
+          <Form.Item>
+            <Input
+              placeholder={t("alias.namePlaceholder")}
+              value={newAlias.alias}
+              onChange={(e) => setNewAlias({ ...newAlias, alias: e.target.value })}
+              style={{ width: 240 }}
+            />
+          </Form.Item>
+          <Form.Item>
+            <Select
+              placeholder={t("alias.upstreamPlaceholder")}
+              value={newAlias.upstream_id || undefined}
+              onChange={(v) => setNewAlias({ ...newAlias, upstream_id: v })}
+              style={{ width: 260 }}
+              options={models.map((m) => ({
+                value: m.upstream_id,
+                label: m.upstream_id,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              icon={<PlusOutlined />}
+              disabled={!newAlias.alias || !newAlias.upstream_id}
+            >
+              {t("alias.submit")}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+    </>
   );
 }

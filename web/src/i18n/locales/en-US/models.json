@@ -1,0 +1,48 @@
+{
+  "title": "Models",
+  "providerStatus": {
+    "enabled": "Enabled",
+    "missingKey": "No key configured"
+  },
+  "list": {
+    "title": "Model list",
+    "columns": {
+      "upstreamId": "upstream_id",
+      "displayName": "Display name",
+      "capabilities": "Capabilities",
+      "context": "Context",
+      "source": "Source",
+      "deprecated": "Deprecated",
+      "ops": "Actions"
+    },
+    "capability": {
+      "vision": "vision",
+      "reasoning": "reasoning",
+      "webSearch": "web"
+    },
+    "source": {
+      "builtin": "builtin",
+      "custom": "custom"
+    },
+    "readonly": "read-only"
+  },
+  "create": {
+    "title": "Add a custom model",
+    "upstreamPlaceholder": "upstream_id (e.g. deepseek-v4-mini)",
+    "displayNamePlaceholder": "display name (optional)",
+    "submit": "Add"
+  },
+  "deleteConfirm": "Delete this custom model?",
+  "alias": {
+    "title": "Aliases (client model field → upstream id)",
+    "empty": "No aliases yet",
+    "columns": {
+      "alias": "Alias",
+      "mapTo": "Maps to"
+    },
+    "namePlaceholder": "alias (model the client sends)",
+    "upstreamPlaceholder": "— choose upstream model —",
+    "submit": "Add",
+    "deleteConfirm": "Delete alias \"{{alias}}\"?"
+  }
+}

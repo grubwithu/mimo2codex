@@ -1,0 +1,8 @@
+{
+  "allOk": "All provider API keys are present via environment variables.",
+  "missingTitle": "Missing API keys for the following providers:",
+  "missingHint": "API keys are never stored in the UI. Inject each key via env var, then restart mimo2codex:",
+  "exampleLabel": "Example:",
+  "macLinux": "macOS / Linux",
+  "windows": "Windows PowerShell"
+}

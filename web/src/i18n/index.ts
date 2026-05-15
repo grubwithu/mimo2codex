@@ -7,12 +7,20 @@ import zhSettings from "./locales/zh-CN/settings.json";
 import zhLogs from "./locales/zh-CN/logs.json";
 import zhDashboard from "./locales/zh-CN/dashboard.json";
 import zhProviders from "./locales/zh-CN/providers.json";
+import zhSetup from "./locales/zh-CN/setup.json";
+import zhModels from "./locales/zh-CN/models.json";
+import zhCodexEnable from "./locales/zh-CN/codexEnable.json";
+import zhKeyBanner from "./locales/zh-CN/keyBanner.json";
 import enCommon from "./locales/en-US/common.json";
 import enNav from "./locales/en-US/nav.json";
 import enSettings from "./locales/en-US/settings.json";
 import enLogs from "./locales/en-US/logs.json";
 import enDashboard from "./locales/en-US/dashboard.json";
 import enProviders from "./locales/en-US/providers.json";
+import enSetup from "./locales/en-US/setup.json";
+import enModels from "./locales/en-US/models.json";
+import enCodexEnable from "./locales/en-US/codexEnable.json";
+import enKeyBanner from "./locales/en-US/keyBanner.json";
 
 export const SUPPORTED_LANGS = ["zh-CN", "en-US"] as const;
 export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
@@ -27,6 +35,10 @@ void i18n.use(initReactI18next).init({
       logs: zhLogs,
       dashboard: zhDashboard,
       providers: zhProviders,
+      setup: zhSetup,
+      models: zhModels,
+      codexEnable: zhCodexEnable,
+      keyBanner: zhKeyBanner,
     },
     "en-US": {
       common: enCommon,
@@ -35,12 +47,27 @@ void i18n.use(initReactI18next).init({
       logs: enLogs,
       dashboard: enDashboard,
       providers: enProviders,
+      setup: enSetup,
+      models: enModels,
+      codexEnable: enCodexEnable,
+      keyBanner: enKeyBanner,
     },
   },
   lng: DEFAULT_LANG,
   fallbackLng: DEFAULT_LANG,
   defaultNS: "common",
-  ns: ["common", "nav", "settings", "logs", "dashboard", "providers"],
+  ns: [
+    "common",
+    "nav",
+    "settings",
+    "logs",
+    "dashboard",
+    "providers",
+    "setup",
+    "models",
+    "codexEnable",
+    "keyBanner",
+  ],
   interpolation: { escapeValue: false },
   returnEmptyString: false,
   missingKeyHandler: (lngs, ns, key) => {

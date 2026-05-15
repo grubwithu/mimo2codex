@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Modal,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
   api,
+  type CodexBackupPair,
   type CodexState,
   type CodexTarget,
   type CodexTargetsResponse,
@@ -12,20 +26,21 @@ type Busy = null | {
 };
 
 export function CodexEnable() {
+  const { t } = useTranslation("codexEnable");
+  const { t: tCommon } = useTranslation("common");
+  const [modal, modalCtx] = Modal.useModal();
   const [state, setState] = useState<CodexState | null>(null);
   const [targetsResp, setTargetsResp] = useState<CodexTargetsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
-  // Confirmation dialog state for the "external auth.json" warning.
-  const [pendingApply, setPendingApply] = useState<CodexTarget | null>(null);
 
   async function load() {
     try {
       setError(null);
-      const [s, t] = await Promise.all([api.codexState(), api.codexTargets()]);
+      const [s, ts] = await Promise.all([api.codexState(), api.codexTargets()]);
       setState(s);
-      setTargetsResp(t);
+      setTargetsResp(ts);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -35,24 +50,31 @@ export function CodexEnable() {
     void load();
   }, []);
 
-  function rowKey(t: CodexTarget): string {
-    return `${t.providerId}::${t.modelId}`;
+  function rowKey(target: CodexTarget): string {
+    return `${target.providerId}::${target.modelId}`;
   }
 
-  async function doApply(t: CodexTarget) {
-    setBusy({ kind: "apply", key: rowKey(t) });
+  async function doApply(target: CodexTarget) {
+    setBusy({ kind: "apply", key: rowKey(target) });
     setError(null);
     setSuccess(null);
     try {
-      const resp = await api.codexApply({ providerId: t.providerId, modelId: t.modelId });
+      const resp = await api.codexApply({
+        providerId: target.providerId,
+        modelId: target.modelId,
+      });
       let note = "";
       if (resp.preserved) {
-        note = `已备份你原来的 Codex 配置（ts=${resp.backupTs}，🔒 永久保留，不会因后续切换被清理）。`;
+        note = t("msg.appliedPreserved", { ts: resp.backupTs });
       } else if (resp.authBackup || resp.tomlBackup) {
-        note = `已备份原文件（ts=${resp.backupTs}）。`;
+        note = t("msg.appliedBackedUp", { ts: resp.backupTs });
       }
       setSuccess(
-        `已写入 ${t.providerDisplayName} / ${t.modelId}。${note}请完全退出并重启 Codex 让新配置生效。`
+        t("msg.applied", {
+          provider: target.providerDisplayName,
+          model: target.modelId,
+          note,
+        })
       );
       await load();
     } catch (err) {
@@ -62,23 +84,46 @@ export function CodexEnable() {
     }
   }
 
-  function onApplyClick(t: CodexTarget) {
+  function onApplyClick(target: CodexTarget) {
     if (state?.authJsonOwner === "external") {
-      // Real OpenAI key (or unparseable JSON) detected — show confirmation.
-      setPendingApply(t);
+      modal.confirm({
+        width: 540,
+        title: t("confirm.applyTitle"),
+        okButtonProps: { danger: true },
+        okText: t("confirm.applyConfirmBtn"),
+        cancelText: tCommon("cancel"),
+        content: (
+          <div>
+            <p>{t("confirm.applyP1")}</p>
+            <p>{t("confirm.applyP2")}</p>
+            <p>
+              {t("confirm.applyTarget")}:{" "}
+              <strong>{target.providerDisplayName}</strong> /{" "}
+              <code>{target.modelId}</code>
+            </p>
+          </div>
+        ),
+        onOk: () => doApply(target),
+      });
       return;
     }
-    void doApply(t);
+    void doApply(target);
   }
 
-  async function doOverride(t: CodexTarget) {
-    setBusy({ kind: "override", key: rowKey(t) });
+  async function doOverride(target: CodexTarget) {
+    setBusy({ kind: "override", key: rowKey(target) });
     setError(null);
     setSuccess(null);
     try {
-      await api.setActiveOverride({ providerId: t.providerId, modelId: t.modelId });
+      await api.setActiveOverride({
+        providerId: target.providerId,
+        modelId: target.modelId,
+      });
       setSuccess(
-        `运行时覆盖已设置为 ${t.providerDisplayName} / ${t.modelId}。无需重启 Codex，下一次请求即生效。`
+        t("msg.overrideSet", {
+          provider: target.providerDisplayName,
+          model: target.modelId,
+        })
       );
       await load();
     } catch (err) {
@@ -94,7 +139,7 @@ export function CodexEnable() {
     setSuccess(null);
     try {
       await api.clearActiveOverride();
-      setSuccess("运行时覆盖已清除，路由回到默认行为。");
+      setSuccess(t("msg.overrideCleared"));
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -103,119 +148,138 @@ export function CodexEnable() {
     }
   }
 
-  async function doRestore(b: { ts: number; authBackup: string | null; tomlBackup: string | null }) {
-    // Explain the symmetric semantics: if one half is missing, that file
-    // didn't exist before this ts's apply — we'll delete the current copy
-    // so the disk returns to its real prior state.
+  function onRestoreClick(b: CodexBackupPair) {
     const missing: string[] = [];
-    if (!b.authBackup) missing.push("auth.json（当时不存在 → 恢复时会删除当前的 auth.json）");
-    if (!b.tomlBackup) missing.push("config.toml（当时不存在 → 恢复时会删除当前的 config.toml）");
+    if (!b.authBackup) missing.push(t("confirm.restoreMissingAuth"));
+    if (!b.tomlBackup) missing.push(t("confirm.restoreMissingToml"));
     const detail =
       missing.length > 0
-        ? `\n注意：此备份只有一半。${missing.join("，")}。`
+        ? `\n${t("confirm.restoreMissingPrefix")}${missing.join("; ")}.`
         : "";
-    if (!confirm(`恢复到备份 ts=${b.ts}？当前 auth.json + config.toml 不会再次备份。${detail}`)) return;
-    setBusy({ kind: "restore", key: String(b.ts) });
-    setError(null);
-    setSuccess(null);
-    try {
-      await api.codexRestore(b.ts);
-      setSuccess(`已从备份 ts=${b.ts} 恢复。请重启 Codex 让旧配置生效。`);
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(null);
-    }
+    modal.confirm({
+      title: t("confirm.restoreTitle", { ts: b.ts }),
+      content: <div style={{ whiteSpace: "pre-wrap" }}>{t("confirm.restoreBody") + detail}</div>,
+      okText: t("backup.restore"),
+      cancelText: tCommon("cancel"),
+      onOk: async () => {
+        setBusy({ kind: "restore", key: String(b.ts) });
+        setError(null);
+        setSuccess(null);
+        try {
+          await api.codexRestore(b.ts);
+          setSuccess(t("msg.restored", { ts: b.ts }));
+          await load();
+        } catch (err) {
+          setError((err as Error).message);
+        } finally {
+          setBusy(null);
+        }
+      },
+    });
   }
 
-  async function doDeleteBackup(b: { ts: number; preserved: boolean }) {
-    const warn = b.preserved
-      ? `这是「🔒 原始 Codex 配置」备份 — 删除后将无法再一键恢复回你最初的真 Codex 配置。\n\n确定继续？`
-      : `删除备份 ts=${b.ts}？此操作不可逆。`;
-    if (!confirm(warn)) return;
-    setBusy({ kind: "delete-backup", key: String(b.ts) });
-    setError(null);
-    setSuccess(null);
-    try {
-      await api.deleteCodexBackup(b.ts, b.preserved);
-      setSuccess(`已删除备份 ts=${b.ts}。`);
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(null);
-    }
+  function onDeleteBackupClick(b: CodexBackupPair) {
+    const text = b.preserved
+      ? t("confirm.deletePreserved")
+      : t("confirm.deleteNormal", { ts: b.ts });
+    modal.confirm({
+      title: t("backup.delete"),
+      content: <div style={{ whiteSpace: "pre-wrap" }}>{text}</div>,
+      okButtonProps: { danger: true },
+      okText: t("backup.delete"),
+      cancelText: tCommon("cancel"),
+      onOk: async () => {
+        setBusy({ kind: "delete-backup", key: String(b.ts) });
+        setError(null);
+        setSuccess(null);
+        try {
+          await api.deleteCodexBackup(b.ts, b.preserved);
+          setSuccess(t("msg.backupDeleted", { ts: b.ts }));
+          await load();
+        } catch (err) {
+          setError((err as Error).message);
+        } finally {
+          setBusy(null);
+        }
+      },
+    });
   }
 
-  // Group targets by provider for the table.
   const grouped = useMemo(() => {
     if (!targetsResp) return new Map<string, CodexTarget[]>();
     const m = new Map<string, CodexTarget[]>();
-    for (const t of targetsResp.targets) {
-      const arr = m.get(t.providerId) ?? [];
-      arr.push(t);
-      m.set(t.providerId, arr);
+    for (const target of targetsResp.targets) {
+      const arr = m.get(target.providerId) ?? [];
+      arr.push(target);
+      m.set(target.providerId, arr);
     }
     return m;
   }, [targetsResp]);
 
   return (
-    <div>
-      <h2>Codex 启用</h2>
-      <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>
-        在这里一键切换 Codex 实际调用的模型，替代 ccswitch。提供两种机制：
-      </p>
-      <div className="banner info" style={{ marginBottom: 16 }}>
-        <span className="ic">i</span>
-        <div className="body">
-          <div>
-            <strong>写入文件并启用</strong>：物理写入 <code>~/.codex/auth.json</code> 和{" "}
-            <code>~/.codex/config.toml</code>，与 ccswitch 行为一致。
-            <strong> 需要重启 Codex</strong> 才能生效。原文件会被自动备份，可一键恢复。
-          </div>
-          <div style={{ marginTop: 6 }}>
-            <strong>仅运行时覆盖</strong>：把激活的 (provider, model) 存到 mimo2codex 内部，
-            <code> selectProvider</code> 路由时优先用它。
-            <strong> 无需重启 Codex</strong>，但要求 Codex 已经能连到 mimo2codex（即首次接入仍需用上面那种方式）。
-          </div>
-        </div>
-      </div>
+    <>
+      {modalCtx}
+      <Typography.Title level={2} style={{ marginTop: 0 }}>
+        {t("title")}
+      </Typography.Title>
+      <Typography.Paragraph type="secondary">{t("intro")}</Typography.Paragraph>
+
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        description={
+          <Space direction="vertical" size={6}>
+            <Trans i18nKey="modesInfo.applyFile" ns="codexEnable">
+              <strong>placeholder</strong>placeholder<strong>placeholder</strong>placeholder
+            </Trans>
+            <Trans i18nKey="modesInfo.runtimeOverride" ns="codexEnable">
+              <strong>placeholder</strong>placeholder<strong>placeholder</strong>placeholder
+            </Trans>
+          </Space>
+        }
+        message={null}
+      />
 
       {error && (
-        <div className="banner err">
-          <span className="ic">!</span>
-          <div className="body">{error}</div>
-        </div>
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          closable
+          onClose={() => setError(null)}
+          style={{ marginBottom: 16 }}
+        />
       )}
       {success && (
-        <div className="banner ok">
-          <span className="ic">✓</span>
-          <div className="body">{success}</div>
-        </div>
+        <Alert
+          type="success"
+          showIcon
+          message={success}
+          closable
+          onClose={() => setSuccess(null)}
+          style={{ marginBottom: 16 }}
+        />
       )}
 
       {state && <CurrentStateCard state={state} />}
 
       {state && (
-        <>
-          <h3>可启用组合</h3>
+        <Card title={t("targets.title")} style={{ marginBottom: 16 }}>
           {state.authJsonOwner === "external" && (
-            <div className="banner warn" style={{ marginBottom: 12 }}>
-              <span className="ic">⚠</span>
-              <div className="body">
-                当前 <code>~/.codex/auth.json</code> 不是 mimo2codex 写入的（可能是真 OpenAI 登录或其他工具）。
-                点「写入文件并启用」会先自动备份再覆盖，恢复随时可做。
-              </div>
-            </div>
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={t("targets.externalWarn")}
+            />
           )}
           {targetsResp && targetsResp.targets.length === 0 ? (
-            <div className="empty">没有可启用的模型组合。</div>
+            <Typography.Text type="secondary">{t("targets.empty")}</Typography.Text>
           ) : (
             Array.from(grouped.entries()).map(([providerId, list]) => (
               <ProviderBlock
                 key={providerId}
-                providerId={providerId}
                 providerDisplayName={list[0].providerDisplayName}
                 targets={list}
                 busy={busy}
@@ -224,125 +288,105 @@ export function CodexEnable() {
               />
             ))
           )}
-        </>
+        </Card>
       )}
 
-      {state && <RuntimeOverrideCard state={state} busy={busy} onClear={doClearOverride} />}
+      {state && (
+        <RuntimeOverrideCard state={state} busy={busy} onClear={doClearOverride} />
+      )}
 
       {state && (
         <BackupCard
           state={state}
           busy={busy}
-          onRestore={doRestore}
-          onDelete={doDeleteBackup}
+          onRestore={onRestoreClick}
+          onDelete={onDeleteBackupClick}
         />
       )}
-
-      {pendingApply && (
-        <ConfirmModal
-          title="覆盖 auth.json？"
-          body={
-            <>
-              <p>
-                当前 <code>~/.codex/auth.json</code> 不是 mimo2codex 写入的，可能保存着你真实的 OpenAI 登录信息。
-              </p>
-              <p>
-                继续会自动备份它（<code>auth.json.bak.&lt;时间戳&gt;</code>）并写入 mimo2codex 占位 key。
-                之后可通过下方「备份与恢复」一键恢复。
-              </p>
-              <p>
-                目标：<strong>{pendingApply.providerDisplayName}</strong> /{" "}
-                <code>{pendingApply.modelId}</code>
-              </p>
-            </>
-          }
-          onCancel={() => setPendingApply(null)}
-          onConfirm={() => {
-            const t = pendingApply;
-            setPendingApply(null);
-            void doApply(t);
-          }}
-          confirmLabel="备份并覆盖"
-        />
-      )}
-    </div>
+    </>
   );
 }
 
 function CurrentStateCard({ state }: { state: CodexState }) {
+  const { t } = useTranslation("codexEnable");
   const ownerTag =
     state.authJsonOwner === "mimo2codex" ? (
-      <span className="tag ok">mimo2codex</span>
+      <Tag color="success">{t("state.owner.mimo2codex")}</Tag>
     ) : state.authJsonOwner === "external" ? (
-      <span className="tag warn">外部（真 OpenAI key 或其他）</span>
+      <Tag color="warning">{t("state.owner.external")}</Tag>
     ) : (
-      <span className="tag muted">尚未创建</span>
+      <Tag>{t("state.owner.missing")}</Tag>
     );
-
   const currentToml = parseConfigToml(state.configTomlText);
 
   return (
-    <>
-      <h3>当前状态</h3>
-      <table style={{ marginBottom: 16 }}>
-        <tbody>
-          <tr>
-            <td style={{ width: 160 }}>Codex 目录</td>
-            <td className="mono">{state.codexDir}</td>
-          </tr>
-          <tr>
-            <td>auth.json</td>
-            <td>
-              {ownerTag}{" "}
-              <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-                {state.authPath}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td>config.toml</td>
-            <td>
-              {state.configTomlExists ? (
-                <>
-                  {currentToml.provider && (
-                    <span className="tag">
-                      provider=<code>{currentToml.provider}</code>
-                    </span>
-                  )}{" "}
-                  {currentToml.model && (
-                    <span className="tag">
-                      model=<code>{currentToml.model}</code>
-                    </span>
-                  )}{" "}
-                  {!currentToml.provider && !currentToml.model && (
-                    <span className="tag muted">无法解析当前 model</span>
-                  )}{" "}
-                  <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-                    {state.tomlPath}
-                  </span>
-                </>
-              ) : (
-                <span className="tag muted">尚未创建</span>
-              )}
-            </td>
-          </tr>
-          <tr>
-            <td>运行时覆盖</td>
-            <td>
-              {state.activeOverride ? (
-                <span className="tag ok">
-                  <code>
-                    {state.activeOverride.providerId} / {state.activeOverride.modelId}
-                  </code>
-                </span>
-              ) : (
-                <span className="tag muted">未设置</span>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </>
+    <Card title={t("state.title")} style={{ marginBottom: 16 }}>
+      <Descriptions
+        column={1}
+        bordered
+        size="small"
+        labelStyle={{ width: 160 }}
+        items={[
+          {
+            key: "codexDir",
+            label: t("state.codexDir"),
+            children: <code>{state.codexDir}</code>,
+          },
+          {
+            key: "auth",
+            label: t("state.authJson"),
+            children: (
+              <Space>
+                {ownerTag}
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  <code>{state.authPath}</code>
+                </Typography.Text>
+              </Space>
+            ),
+          },
+          {
+            key: "toml",
+            label: t("state.configToml"),
+            children: state.configTomlExists ? (
+              <Space wrap>
+                {currentToml.provider && (
+                  <Tag>
+                    {t("state.tomlProvider")}=<code>{currentToml.provider}</code>
+                  </Tag>
+                )}
+                {currentToml.model && (
+                  <Tag>
+                    {t("state.tomlModel")}=<code>{currentToml.model}</code>
+                  </Tag>
+                )}
+                {!currentToml.provider && !currentToml.model && (
+                  <Tag>{t("state.tomlUnknown")}</Tag>
+                )}
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  <code>{state.tomlPath}</code>
+                </Typography.Text>
+              </Space>
+            ) : (
+              <Tag>{t("state.owner.missing")}</Tag>
+            ),
+          },
+          {
+            key: "override",
+            label: t("state.override"),
+            children: state.activeOverride ? (
+              <Tag color="success">
+                <code>
+                  {state.activeOverride.providerId} /{" "}
+                  {state.activeOverride.modelId}
+                </code>
+              </Tag>
+            ) : (
+              <Tag>{t("state.overrideNone")}</Tag>
+            ),
+          },
+        ]}
+      />
+    </Card>
   );
 }
 
@@ -353,90 +397,107 @@ function ProviderBlock({
   onApply,
   onOverride,
 }: {
-  providerId: string;
   providerDisplayName: string;
   targets: CodexTarget[];
   busy: Busy;
   onApply: (t: CodexTarget) => void;
   onOverride: (t: CodexTarget) => Promise<void>;
 }) {
+  const { t } = useTranslation("codexEnable");
   const hasKey = targets[0]?.hasKey ?? false;
+
+  const columns: ColumnsType<CodexTarget> = [
+    {
+      title: t("targets.columns.model"),
+      key: "model",
+      render: (_, row) => (
+        <Space>
+          <strong>
+            <code>{row.modelId}</code>
+          </strong>
+          {row.displayName && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {row.displayName}
+            </Typography.Text>
+          )}
+          {row.isCurrentOverride && (
+            <Tag color="success">{t("targets.activeOverride")}</Tag>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: t("targets.columns.source"),
+      dataIndex: "source",
+      key: "source",
+      render: (v: CodexTarget["source"]) =>
+        v === "builtin" ? (
+          <Tag>{t("targets.source.builtin")}</Tag>
+        ) : (
+          <Tag color="success">{t("targets.source.custom")}</Tag>
+        ),
+    },
+    {
+      title: t("targets.columns.context"),
+      dataIndex: "contextWindow",
+      key: "contextWindow",
+      render: (v: number | null) => (v ? v.toLocaleString() : "—"),
+    },
+    {
+      title: t("targets.columns.ops"),
+      key: "ops",
+      align: "right",
+      width: 320,
+      render: (_, row) => {
+        const key = `${row.providerId}::${row.modelId}`;
+        const applyBusy = busy?.kind === "apply" && busy.key === key;
+        const overrideBusy = busy?.kind === "override" && busy.key === key;
+        return (
+          <Space>
+            <Button
+              type="primary"
+              onClick={() => onApply(row)}
+              loading={applyBusy}
+              disabled={!!busy && !applyBusy}
+              title={t("targets.applyTitle")}
+            >
+              {applyBusy ? t("targets.applyBusy") : t("targets.applyBtn")}
+            </Button>
+            <Button
+              onClick={() => void onOverride(row)}
+              loading={overrideBusy}
+              disabled={(!!busy && !overrideBusy) || !hasKey}
+              title={
+                hasKey
+                  ? t("targets.overrideTitle")
+                  : t("targets.overrideDisabledTitle")
+              }
+            >
+              {overrideBusy ? t("targets.overrideBusy") : t("targets.overrideBtn")}
+            </Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
   return (
-    <div style={{ marginBottom: 20 }}>
-      <h4 style={{ margin: "12px 0 8px" }}>
+    <div style={{ marginBottom: 16 }}>
+      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>
         {providerDisplayName}{" "}
         {hasKey ? (
-          <span className="tag ok">已配置 key</span>
+          <Tag color="success">{t("targets.hasKey")}</Tag>
         ) : (
-          <span className="tag warn">未检测到 key</span>
+          <Tag color="warning">{t("targets.missingKey")}</Tag>
         )}
-      </h4>
-      <table>
-        <thead>
-          <tr>
-            <th>模型</th>
-            <th>来源</th>
-            <th>上下文</th>
-            <th style={{ textAlign: "right" }}>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {targets.map((t) => {
-            const key = `${t.providerId}::${t.modelId}`;
-            const applyBusy = busy?.kind === "apply" && busy.key === key;
-            const overrideBusy = busy?.kind === "override" && busy.key === key;
-            return (
-              <tr key={key}>
-                <td>
-                  <strong className="mono">{t.modelId}</strong>
-                  {t.displayName && (
-                    <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: 12 }}>
-                      {t.displayName}
-                    </span>
-                  )}
-                  {t.isCurrentOverride && (
-                    <>
-                      {" "}
-                      <span className="tag ok">运行时激活</span>
-                    </>
-                  )}
-                </td>
-                <td>
-                  {t.source === "builtin" ? (
-                    <span className="tag muted">内置</span>
-                  ) : (
-                    <span className="tag">自定义</span>
-                  )}
-                </td>
-                <td className="mono">
-                  {t.contextWindow ? t.contextWindow.toLocaleString() : "—"}
-                </td>
-                <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                  <button
-                    onClick={() => onApply(t)}
-                    disabled={!!busy}
-                    title="写入 ~/.codex/auth.json 和 config.toml，需重启 Codex"
-                  >
-                    {applyBusy ? "写入中…" : "写入文件并启用"}
-                  </button>{" "}
-                  <button
-                    className="secondary"
-                    onClick={() => void onOverride(t)}
-                    disabled={!!busy || !hasKey}
-                    title={
-                      hasKey
-                        ? "把激活模型存到 settings DB，无需重启 Codex"
-                        : "provider 没有 api key，无法作为运行时覆盖"
-                    }
-                  >
-                    {overrideBusy ? "设置中…" : "仅运行时覆盖"}
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      </Typography.Title>
+      <Table<CodexTarget>
+        rowKey={(r) => `${r.providerId}::${r.modelId}`}
+        dataSource={targets}
+        columns={columns}
+        pagination={false}
+        size="middle"
+      />
     </div>
   );
 }
@@ -450,32 +511,28 @@ function RuntimeOverrideCard({
   busy: Busy;
   onClear: () => Promise<void>;
 }) {
+  const { t } = useTranslation("codexEnable");
   return (
-    <>
-      <h3>运行时覆盖</h3>
+    <Card title={t("override.title")} style={{ marginBottom: 16 }}>
       {state.activeOverride ? (
-        <div className="banner info">
-          <span className="ic">i</span>
-          <div className="body">
-            <div>
-              当前覆盖：<code>{state.activeOverride.providerId}</code> /{" "}
-              <code>{state.activeOverride.modelId}</code>
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <button
-                className="secondary"
-                onClick={() => void onClear()}
-                disabled={busy?.kind === "clear"}
-              >
-                {busy?.kind === "clear" ? "清除中…" : "清除覆盖"}
-              </button>
-            </div>
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div>
+            {t("override.current")}:{" "}
+            <code>
+              {state.activeOverride.providerId} / {state.activeOverride.modelId}
+            </code>
           </div>
-        </div>
+          <Button
+            onClick={() => void onClear()}
+            loading={busy?.kind === "clear"}
+          >
+            {busy?.kind === "clear" ? t("override.clearBusy") : t("override.clear")}
+          </Button>
+        </Space>
       ) : (
-        <div className="empty">尚未设置运行时覆盖。点上面任意行的「仅运行时覆盖」启用。</div>
+        <Typography.Text type="secondary">{t("override.empty")}</Typography.Text>
       )}
-    </>
+    </Card>
   );
 }
 
@@ -487,140 +544,131 @@ function BackupCard({
 }: {
   state: CodexState;
   busy: Busy;
-  onRestore: (b: CodexState["backups"][number]) => Promise<void>;
-  onDelete: (b: { ts: number; preserved: boolean }) => Promise<void>;
+  onRestore: (b: CodexBackupPair) => void;
+  onDelete: (b: CodexBackupPair) => void;
 }) {
+  const { t } = useTranslation("codexEnable");
+
+  const columns: ColumnsType<CodexBackupPair> = [
+    {
+      title: t("backup.columns.ts"),
+      dataIndex: "ts",
+      key: "ts",
+      render: (v: number) => <code style={{ fontSize: 11 }}>{v}</code>,
+    },
+    {
+      title: t("backup.columns.time"),
+      dataIndex: "ts",
+      key: "time",
+      render: (v: number) => new Date(v).toLocaleString(),
+    },
+    {
+      title: t("backup.columns.type"),
+      key: "type",
+      render: (_, b) =>
+        b.preserved ? (
+          <Tag color="success" title={t("backup.type.preservedTitle")}>
+            {t("backup.type.preserved")}
+          </Tag>
+        ) : b.authBackupOwner === "mimo2codex" ? (
+          <Tag>{t("backup.type.snapshotMimo")}</Tag>
+        ) : (
+          <Tag>{t("backup.type.snapshot")}</Tag>
+        ),
+    },
+    {
+      title: t("backup.columns.providerModel"),
+      key: "providerModel",
+      render: (_, b) =>
+        b.provider || b.model ? (
+          <code style={{ fontSize: 12 }}>
+            {b.provider ?? "?"} / {b.model ?? "?"}
+          </code>
+        ) : (
+          <Tag>{t("backup.notRecorded")}</Tag>
+        ),
+    },
+    {
+      title: t("backup.columns.auth"),
+      key: "auth",
+      render: (_, b) =>
+        b.authBackup ? (
+          <Tag color="success">{t("backup.has")}</Tag>
+        ) : (
+          <Tag>{t("backup.missing")}</Tag>
+        ),
+    },
+    {
+      title: t("backup.columns.toml"),
+      key: "toml",
+      render: (_, b) =>
+        b.tomlBackup ? (
+          <Tag color="success">{t("backup.has")}</Tag>
+        ) : (
+          <Tag>{t("backup.missing")}</Tag>
+        ),
+    },
+    {
+      title: t("backup.columns.ops"),
+      key: "ops",
+      align: "right",
+      width: 200,
+      render: (_, b) => {
+        const restoreBusy = busy?.kind === "restore" && busy.key === String(b.ts);
+        const deleteBusy = busy?.kind === "delete-backup" && busy.key === String(b.ts);
+        return (
+          <Space>
+            <Button
+              size="small"
+              onClick={() => onRestore(b)}
+              loading={restoreBusy}
+              disabled={!!busy && !restoreBusy}
+            >
+              {restoreBusy ? t("backup.restoreBusy") : t("backup.restore")}
+            </Button>
+            <Button
+              size="small"
+              danger
+              onClick={() => onDelete(b)}
+              loading={deleteBusy}
+              disabled={!!busy && !deleteBusy}
+              title={
+                b.preserved
+                  ? t("backup.deletePreservedTitle")
+                  : t("backup.deleteTitle")
+              }
+            >
+              {deleteBusy ? t("backup.deleteBusy") : t("backup.delete")}
+            </Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
   return (
-    <>
-      <h3>备份与恢复</h3>
-      <p style={{ color: "var(--muted)", fontSize: 12, marginTop: -6, marginBottom: 10 }}>
-        每次「写入文件并启用」会自动备份当时的 auth.json + config.toml。
-        默认保留最近 10 份；
-        <strong>🔒 标记的备份（首次覆盖你真 Codex 配置时产生）永久保留</strong>，
-        不会随后续切换被清理。
-      </p>
-      {state.backups.length === 0 ? (
-        <div className="empty">尚无备份。第一次「写入文件并启用」会自动产生备份。</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>时间戳</th>
-              <th>本地时间</th>
-              <th>类型</th>
-              <th>当时的 provider / model</th>
-              <th>auth.json</th>
-              <th>config.toml</th>
-              <th style={{ textAlign: "right" }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.backups.map((b) => {
-              const restoreBusy = busy?.kind === "restore" && busy.key === String(b.ts);
-              const deleteBusy = busy?.kind === "delete-backup" && busy.key === String(b.ts);
-              const typeBadge = b.preserved ? (
-                <span className="tag ok" title="首次覆盖外部 auth.json 时产生，永久保留">
-                  🔒 原始 Codex 配置
-                </span>
-              ) : b.authBackupOwner === "mimo2codex" ? (
-                <span className="tag muted">mimo2codex 快照</span>
-              ) : (
-                <span className="tag">快照</span>
-              );
-              return (
-                <tr key={b.ts}>
-                  <td className="mono" style={{ fontSize: 11 }}>
-                    {b.ts}
-                  </td>
-                  <td>{new Date(b.ts).toLocaleString()}</td>
-                  <td>{typeBadge}</td>
-                  <td>
-                    {b.provider || b.model ? (
-                      <span className="mono" style={{ fontSize: 12 }}>
-                        {b.provider ?? "?"} / {b.model ?? "?"}
-                      </span>
-                    ) : (
-                      <span className="tag muted">未记录</span>
-                    )}
-                  </td>
-                  <td>
-                    {b.authBackup ? (
-                      <span className="tag ok">有</span>
-                    ) : (
-                      <span className="tag muted">无</span>
-                    )}
-                  </td>
-                  <td>
-                    {b.tomlBackup ? (
-                      <span className="tag ok">有</span>
-                    ) : (
-                      <span className="tag muted">无</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button
-                      className="secondary"
-                      onClick={() => void onRestore(b)}
-                      disabled={!!busy}
-                    >
-                      {restoreBusy ? "恢复中…" : "恢复"}
-                    </button>{" "}
-                    <button
-                      className="danger"
-                      onClick={() => void onDelete({ ts: b.ts, preserved: b.preserved })}
-                      disabled={!!busy}
-                      title={b.preserved ? "已锁定，删除会永久丢失原始配置" : "删除此备份"}
-                    >
-                      {deleteBusy ? "删除中…" : "删除"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </>
+    <Card
+      title={t("backup.title")}
+      extra={
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          <Trans i18nKey="backup.intro" ns="codexEnable">
+            <strong>placeholder</strong>
+          </Trans>
+        </Typography.Text>
+      }
+    >
+      <Table<CodexBackupPair>
+        rowKey="ts"
+        dataSource={state.backups}
+        columns={columns}
+        pagination={false}
+        size="middle"
+        locale={{ emptyText: t("backup.empty") }}
+      />
+    </Card>
   );
 }
 
-function ConfirmModal({
-  title,
-  body,
-  onCancel,
-  onConfirm,
-  confirmLabel,
-}: {
-  title: string;
-  body: React.ReactNode;
-  onCancel: () => void;
-  onConfirm: () => void;
-  confirmLabel: string;
-}) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-window" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="close" onClick={onCancel} aria-label="关闭">
-            ×
-          </button>
-        </div>
-        <div className="modal-body">{body}</div>
-        <div className="modal-footer">
-          <button className="secondary" onClick={onCancel}>
-            取消
-          </button>
-          <button onClick={onConfirm}>{confirmLabel}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Best-effort TOML hint extraction for the status card. We only care about the
-// top-level `model = "..."` and `model_provider = "..."` keys; the rest of the
-// file may be arbitrary and we leave full TOML parsing to Codex itself.
 function parseConfigToml(text: string | null): { model: string | null; provider: string | null } {
   if (!text) return { model: null, provider: null };
   const modelMatch = /^\s*model\s*=\s*"([^"\n]+)"/m.exec(text);

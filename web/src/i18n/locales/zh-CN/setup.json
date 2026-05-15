@@ -1,0 +1,34 @@
+{
+  "title": "对接指引",
+  "intro": "把当前正在运行的 mimo2codex 接到 Codex CLI / 桌面端。下方片段是按本机 host:port 实时生成的，复制即用。",
+  "providerLabel": "Provider",
+  "currentModel": "当前选中模型",
+  "defaultTag": "(默认)",
+  "tab": {
+    "auth": "方法 1：修改 auth.json + config.toml（推荐）",
+    "envkey": "方法 2：env-key（仅 Codex CLI）",
+    "ccswitch": "方法 3：cc-switch"
+  },
+  "auth": {
+    "warn": "这个方法会覆盖你现有的 <1>{{path}}</1>。如果你同时用 Codex 登录真实的 OpenAI 账号，请改用方法 2（env-key）或方法 3（cc-switch）。",
+    "step1": "步骤 1 · 写入 {{path}}",
+    "step2": "步骤 2 · 追加到 {{path}}",
+    "step3Title": "步骤 3 · 完全退出并重启 Codex",
+    "step3Body": "Codex 桌面端必须完全退出（任务栏/菜单栏图标点 Quit），重新启动后才能读取新的 auth.json。然后在 Codex 里选择 <1>{{label}}</1> 这个 provider。"
+  },
+  "envkey": {
+    "info": "这个方法保留你现有的 <1>{{path}}</1> 不动，通过环境变量 <3>MIMO2CODEX_KEY</3> 鉴权。<5>仅 Codex CLI 生效</5> —— 桌面端从 Finder/开始菜单启动时不继承 shell env。",
+    "tomlTitle": "config.toml 片段",
+    "envTitle": "设置环境变量",
+    "shellWin": "PowerShell",
+    "shellMac": "macOS / Linux (bash/zsh)",
+    "shellLinux": "Linux (bash/zsh)",
+    "note": "值可以是任意非空字符串 — mimo2codex 不验证入站凭据。你的真实上游 key（MIMO_API_KEY / DS_API_KEY 等）只保留在运行 mimo2codex 这台机器的环境里。"
+  },
+  "ccswitch": {
+    "info": "<1>cc-switch</1> 是一个 Codex provider 切换器桌面应用。打开它，<3>Add Provider → Codex tab → Custom</3>，把下面两段粘到对应输入框。",
+    "authTitle": "auth.json 输入框",
+    "tomlTitle": "config.toml 输入框",
+    "note": "OPENAI_API_KEY 可以是任意非空字符串 — mimo2codex 不验证入站凭据。真实上游 key 保留在运行 mimo2codex 这台机器的环境里。"
+  }
+}
