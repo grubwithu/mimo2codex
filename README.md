@@ -109,6 +109,16 @@ Requires Node.js ≥ 18.
 
 ### 2. Start the proxy
 
+> 💡 **Don't want to `export` every time?** Copy [.env.example](./.env.example) at the repo root to `.env` (gitignored), fill in your keys, then:
+>
+> ```bash
+> source scripts/load-env.sh      # macOS / Linux / Git Bash
+> ```
+> ```powershell
+> . .\scripts\load-env.ps1        # Windows PowerShell (note the leading dot)
+> ```
+> Then just run `mimo2codex`. The scripts never print the values — only which key names were loaded.
+
 **MiMo only** (default):
 
 ```bash

@@ -108,6 +108,16 @@ irm https://raw.githubusercontent.com/7as0nch/mimo2codex/main/scripts/install.ps
 
 ### 2. 启动代理
 
+> 💡 **不想每次手动 export？** 复制根目录的 [.env.example](./.env.example) 为 `.env`（已 gitignore），填入你的 key，然后：
+>
+> ```bash
+> source scripts/load-env.sh      # macOS / Linux / Git Bash
+> ```
+> ```powershell
+> . .\scripts\load-env.ps1        # Windows PowerShell（注意前面的点号）
+> ```
+> 然后直接 `mimo2codex`。脚本不会打印 key 值，只列加载了哪些键名。
+
 **只用 MiMo**（默认）：
 
 ```bash
