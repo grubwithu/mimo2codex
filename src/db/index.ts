@@ -61,11 +61,25 @@ function applyMigrations(db: DB): void {
 }
 
 function seedBuiltins(db: DB): void {
+  // Provider rows sync source-of-truth fields on every boot — display_name,
+  // base_url, default_model and api_key_env are runtime-essential, so the DB
+  // never lags behind code changes (e.g. a base_url switch in mimo.ts must
+  // take effect on the next start without manual DB intervention).
   const upsertProvider = db.prepare(`
     INSERT INTO providers (id, shortcut, display_name, base_url, default_model, api_key_env, updated_at)
     VALUES (@id, @shortcut, @display_name, @base_url, @default_model, @api_key_env, @updated_at)
-    ON CONFLICT(id) DO NOTHING
+    ON CONFLICT(id) DO UPDATE SET
+      shortcut = excluded.shortcut,
+      display_name = excluded.display_name,
+      base_url = excluded.base_url,
+      default_model = excluded.default_model,
+      api_key_env = excluded.api_key_env,
+      updated_at = excluded.updated_at
   `);
+  // Builtin model rows likewise track source on each boot. The UI refuses to
+  // edit builtin rows (patchModel guard), so there's no user state to preserve
+  // here — capabilities, context window and display name all come from the
+  // provider declaration in providers/*.ts.
   const upsertModel = db.prepare(`
     INSERT INTO models (
       provider_id, upstream_id, display_name,
@@ -76,13 +90,31 @@ function seedBuiltins(db: DB): void {
       @supports_images, @supports_reasoning, @supports_web_search,
       @context_window, 1, @deprecated_after, @sort_order
     )
-    ON CONFLICT(provider_id, upstream_id) DO NOTHING
+    ON CONFLICT(provider_id, upstream_id) DO UPDATE SET
+      display_name = excluded.display_name,
+      supports_images = excluded.supports_images,
+      supports_reasoning = excluded.supports_reasoning,
+      supports_web_search = excluded.supports_web_search,
+      context_window = excluded.context_window,
+      is_builtin = 1,
+      deprecated_after = excluded.deprecated_after,
+      sort_order = excluded.sort_order
   `);
   const upsertAlias = db.prepare(`
     INSERT INTO model_aliases (alias, provider_id, upstream_id)
     VALUES (@alias, @provider_id, @upstream_id)
     ON CONFLICT(alias) DO NOTHING
   `);
+  // Drop builtin rows whose upstream_id has been removed from source. This
+  // is what prunes legacy seeds like the old "mimo-v2.5-pro[1m]" variant
+  // after we consolidated the catalog. User-created custom models
+  // (is_builtin=0) are never touched here.
+  const pruneStale = db.prepare(
+    `DELETE FROM models
+     WHERE provider_id = @provider_id
+       AND is_builtin = 1
+       AND upstream_id NOT IN (SELECT value FROM json_each(@keep_json))`
+  );
 
   const now = Date.now();
   const tx = db.transaction(() => {
@@ -96,8 +128,10 @@ function seedBuiltins(db: DB): void {
         api_key_env: p.envKeys.join(","),
         updated_at: now,
       });
+      const keep: string[] = [];
       let order = 0;
       for (const m of p.builtinModels) {
+        keep.push(m.id);
         upsertModel.run({
           provider_id: p.id,
           upstream_id: m.id,
@@ -113,6 +147,7 @@ function seedBuiltins(db: DB): void {
           upsertAlias.run({ alias, provider_id: p.id, upstream_id: m.id });
         }
       }
+      pruneStale.run({ provider_id: p.id, keep_json: JSON.stringify(keep) });
     }
   });
   tx();

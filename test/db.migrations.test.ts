@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { closeDb, openDb } from "../src/db/index.js";
 import { insertLog, queryLogs, aggregateMappings, aggregateStats, getLogById } from "../src/db/logs.js";
 import { listSettings, setSetting, ForbiddenSettingError } from "../src/db/settings.js";
@@ -45,6 +46,48 @@ describe("db migrations + seeding", () => {
     // No duplicate rows for the same upstream_id within a provider.
     const ids = mimoModels.map((m) => m.upstream_id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("syncs context_window and prunes stale builtin rows on next open", () => {
+    // Simulate a previous version's seed: a legacy "[1m]" variant + a
+    // legitimate row whose context_window has since been bumped in source.
+    closeDb();
+    const raw = new Database(join(dataDir, "data.db"));
+    raw.prepare(
+      `INSERT INTO models
+        (provider_id, upstream_id, display_name,
+         supports_images, supports_reasoning, supports_web_search,
+         context_window, is_builtin, deprecated_after, sort_order)
+       VALUES ('mimo', 'mimo-v2.5-pro[1m]', 'Legacy 1M variant',
+               0, 1, 1, 1000000, 1, NULL, 99)`
+    ).run();
+    // Force a stale context_window on a still-current builtin row.
+    raw
+      .prepare(
+        `UPDATE models SET context_window = 128000 WHERE provider_id = 'mimo' AND upstream_id = 'mimo-v2.5-pro'`
+      )
+      .run();
+    raw.close();
+
+    openDb(dataDir);
+
+    const after = listModels("mimo");
+    // Stale legacy row is gone.
+    expect(after.find((m) => m.upstream_id === "mimo-v2.5-pro[1m]")).toBeUndefined();
+    // Current builtin row has been refreshed from source (1M, not 128k).
+    const proRow = after.find((m) => m.upstream_id === "mimo-v2.5-pro");
+    expect(proRow?.context_window).toBe(1_000_000);
+  });
+
+  it("does not delete user-created custom (is_builtin=0) models during prune", () => {
+    insertCustomModel("mimo", {
+      upstream_id: "user-fork-v1",
+      display_name: "user's fork",
+    });
+    closeDb();
+    openDb(dataDir);
+    const mimoModels = listModels("mimo");
+    expect(mimoModels.find((m) => m.upstream_id === "user-fork-v1")).toBeDefined();
   });
 });
 
