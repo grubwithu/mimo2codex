@@ -9,8 +9,10 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
+import { ThunderboltOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import {
   api,
@@ -18,12 +20,21 @@ import {
   type CodexState,
   type CodexTarget,
   type CodexTargetsResponse,
+  type ProbeResult,
 } from "../api/client";
 
 type Busy = null | {
   kind: "apply" | "override" | "restore" | "clear" | "delete-backup";
   key: string;
 };
+
+// Per-row probe state. Indexed by `${providerId}::${modelId}`. `running`
+// drives the button spinner; `result` drives the badge next to the row.
+// Cleared on page reload — probes are point-in-time, not persisted.
+interface ProbeState {
+  running?: boolean;
+  result?: ProbeResult;
+}
 
 export function CodexEnable() {
   const { t } = useTranslation("codexEnable");
@@ -34,6 +45,31 @@ export function CodexEnable() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
+  const [probes, setProbes] = useState<Record<string, ProbeState>>({});
+
+  async function doProbe(target: CodexTarget) {
+    const key = `${target.providerId}::${target.modelId}`;
+    setProbes((prev) => ({ ...prev, [key]: { running: true } }));
+    try {
+      const result = await api.probeModel({
+        providerId: target.providerId,
+        modelId: target.modelId,
+      });
+      setProbes((prev) => ({ ...prev, [key]: { running: false, result } }));
+    } catch (err) {
+      setProbes((prev) => ({
+        ...prev,
+        [key]: {
+          running: false,
+          result: {
+            ok: false,
+            latencyMs: 0,
+            error: { code: "request_failed", message: (err as Error).message },
+          },
+        },
+      }));
+    }
+  }
 
   async function load() {
     try {
@@ -283,8 +319,10 @@ export function CodexEnable() {
                 providerDisplayName={list[0].providerDisplayName}
                 targets={list}
                 busy={busy}
+                probes={probes}
                 onApply={onApplyClick}
                 onOverride={doOverride}
+                onProbe={doProbe}
               />
             ))
           )}
@@ -394,14 +432,18 @@ function ProviderBlock({
   providerDisplayName,
   targets,
   busy,
+  probes,
   onApply,
   onOverride,
+  onProbe,
 }: {
   providerDisplayName: string;
   targets: CodexTarget[];
   busy: Busy;
+  probes: Record<string, ProbeState>;
   onApply: (t: CodexTarget) => void;
   onOverride: (t: CodexTarget) => Promise<void>;
+  onProbe: (t: CodexTarget) => Promise<void>;
 }) {
   const { t } = useTranslation("codexEnable");
   const hasKey = targets[0]?.hasKey ?? false;
@@ -410,21 +452,43 @@ function ProviderBlock({
     {
       title: t("targets.columns.model"),
       key: "model",
-      render: (_, row) => (
-        <Space>
-          <strong>
-            <code>{row.modelId}</code>
-          </strong>
-          {row.displayName && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {row.displayName}
-            </Typography.Text>
-          )}
-          {row.isCurrentOverride && (
-            <Tag color="success">{t("targets.activeOverride")}</Tag>
-          )}
-        </Space>
-      ),
+      render: (_, row) => {
+        const probe = probes[`${row.providerId}::${row.modelId}`]?.result;
+        return (
+          <Space wrap>
+            <strong>
+              <code>{row.modelId}</code>
+            </strong>
+            {row.displayName && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {row.displayName}
+              </Typography.Text>
+            )}
+            {row.isCurrentOverride && (
+              <Tag color="success">{t("targets.activeOverride")}</Tag>
+            )}
+            {probe && (
+              <Tooltip
+                title={
+                  probe.ok
+                    ? probe.sample
+                      ? t("targets.probeSample", { sample: probe.sample })
+                      : ""
+                    : probe.error?.message ?? ""
+                }
+              >
+                <Tag color={probe.ok ? "success" : "error"} style={{ marginInlineEnd: 0 }}>
+                  {probe.ok
+                    ? t("targets.probeOk", { latency: probe.latencyMs })
+                    : t("targets.probeFail", {
+                        code: probe.error?.code ?? "error",
+                      })}
+                </Tag>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: t("targets.columns.source"),
@@ -447,13 +511,25 @@ function ProviderBlock({
       title: t("targets.columns.ops"),
       key: "ops",
       align: "right",
-      width: 320,
+      width: 420,
       render: (_, row) => {
         const key = `${row.providerId}::${row.modelId}`;
         const applyBusy = busy?.kind === "apply" && busy.key === key;
         const overrideBusy = busy?.kind === "override" && busy.key === key;
+        const probeBusy = probes[key]?.running ?? false;
         return (
           <Space>
+            <Button
+              icon={<ThunderboltOutlined />}
+              onClick={() => void onProbe(row)}
+              loading={probeBusy}
+              disabled={!hasKey}
+              title={
+                hasKey ? t("targets.probeTitle") : t("targets.overrideDisabledTitle")
+              }
+            >
+              {probeBusy ? t("targets.probeBusy") : t("targets.probeBtn")}
+            </Button>
             <Button
               type="primary"
               onClick={() => onApply(row)}

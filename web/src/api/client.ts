@@ -315,4 +315,18 @@ export const api = {
     request<{ override: ActiveOverride }>("PUT", "/active-override", body),
   clearActiveOverride: () =>
     request<{ deleted: boolean }>("DELETE", "/active-override"),
+  probeModel: (body: { providerId: string; modelId: string }) =>
+    request<ProbeResult>("POST", "/probe-model", body),
 };
+
+// Result of a /probe-model call. ok=false rows still come back as 200 from
+// the server (with the failure details in `error`) — only schema-level errors
+// (unknown provider, malformed body) come back as non-200 throws.
+export interface ProbeResult {
+  ok: boolean;
+  latencyMs: number;
+  statusCode?: number;
+  upstreamPath?: string;
+  sample?: string | null;
+  error?: { code: string; message: string };
+}

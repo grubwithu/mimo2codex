@@ -44,7 +44,14 @@
     "overrideBtn": "Runtime override only",
     "overrideBusy": "setting…",
     "overrideTitle": "Persist active model in settings DB — no Codex restart needed",
-    "overrideDisabledTitle": "Provider has no API key — cannot be used as runtime override"
+    "overrideDisabledTitle": "Provider has no API key — cannot be used as runtime override",
+    "probeBtn": "Probe",
+    "probeBusy": "probing…",
+    "probeTitle": "Send a minimal request to verify the link (key / baseUrl / model id)",
+    "probeOk": "✓ {{latency}}ms",
+    "probeFail": "✗ {{code}}",
+    "probeTooltip": "Last probe: {{summary}}",
+    "probeSample": "Sample: {{sample}}"
   },
   "override": {
     "title": "Runtime override",

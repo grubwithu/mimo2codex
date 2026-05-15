@@ -44,7 +44,14 @@
     "overrideBtn": "仅运行时覆盖",
     "overrideBusy": "设置中…",
     "overrideTitle": "把激活模型存到 settings DB，无需重启 Codex",
-    "overrideDisabledTitle": "provider 没有 api key，无法作为运行时覆盖"
+    "overrideDisabledTitle": "provider 没有 api key，无法作为运行时覆盖",
+    "probeBtn": "探测",
+    "probeBusy": "探测中…",
+    "probeTitle": "发个最小请求看链路是否通（验证 key / baseUrl / 模型 id）",
+    "probeOk": "✓ {{latency}}ms",
+    "probeFail": "✗ {{code}}",
+    "probeTooltip": "上次探测：{{summary}}",
+    "probeSample": "样本：{{sample}}"
   },
   "override": {
     "title": "运行时覆盖",

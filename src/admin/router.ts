@@ -45,6 +45,12 @@ import {
   getActiveOverride,
   setActiveOverride,
 } from "../db/overrides.js";
+import {
+  callOpenAICompat,
+  callResponsesPassthrough,
+  UpstreamError,
+} from "../upstream/openaiCompatClient.js";
+import type { ChatRequest, ResponsesRequest } from "../translate/types.js";
 
 // Locate dist/web/ relative to THIS module's location, not process.cwd().
 // When mimo2codex is installed globally (`npm install -g`), the user invokes
@@ -679,7 +685,146 @@ async function handleApi(ctx: RouteContext): Promise<void> {
     return sendJson(res, 200, { deleted: true });
   }
 
+  // probe-model: send a minimal chat / responses ping to the upstream so the
+  // user can verify a (provider, model) actually works end-to-end (api key
+  // valid, base url reachable, model id recognized) before flipping Codex
+  // to it. Times out at PROBE_TIMEOUT_MS so a hung upstream can't lock up
+  // the admin UI.
+  if (req.method === "POST" && pathname === "/admin/api/probe-model") {
+    const body = await readJsonBody<{ providerId?: unknown; modelId?: unknown }>(req);
+    if (typeof body.providerId !== "string" || typeof body.modelId !== "string") {
+      return sendError(res, 400, "invalid_body", "providerId and modelId must be strings");
+    }
+    if (!isProviderId(body.providerId)) {
+      return sendError(res, 400, "unknown_provider", `unknown provider ${body.providerId}`);
+    }
+    const provider = PROVIDERS[body.providerId];
+    const runtime = cfg.providers[body.providerId];
+    if (!runtime) {
+      return sendJson(res, 200, {
+        ok: false,
+        latencyMs: 0,
+        error: {
+          code: "no_api_key",
+          message: `provider ${body.providerId} has no API key configured`,
+        },
+      });
+    }
+
+    const PROBE_TIMEOUT_MS = 15_000;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
+    const start = Date.now();
+    try {
+      const upstreamCfg = {
+        baseUrl: runtime.baseUrl,
+        apiKey: runtime.apiKey,
+        userAgent: cfg.userAgent,
+        enhanceError: provider.enhanceError,
+        // Probes don't carry conversation history — context overflow is
+        // impossible by construction, so the "friendly" rewrite has nothing
+        // to do; passthrough keeps any upstream 400 verbatim for debugging.
+        contextOverflowMode: "passthrough" as const,
+      };
+      let httpRes: Response;
+      let upstreamPath: string;
+      if (provider.wireApi === "responses") {
+        const responsesBody: ResponsesRequest = {
+          model: body.modelId,
+          input: [
+            {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: "ping" }],
+            },
+          ],
+          stream: false,
+          max_output_tokens: 16,
+        } as ResponsesRequest;
+        upstreamPath = "/responses";
+        httpRes = await callResponsesPassthrough(upstreamCfg, responsesBody, ac.signal);
+      } else {
+        const chatBody: ChatRequest = {
+          model: body.modelId,
+          messages: [{ role: "user", content: "ping" }],
+          stream: false,
+          max_completion_tokens: 16,
+        };
+        upstreamPath = "/chat/completions";
+        httpRes = await callOpenAICompat(upstreamCfg, chatBody, ac.signal);
+      }
+      const json = (await httpRes.json()) as Record<string, unknown>;
+      const latencyMs = Date.now() - start;
+      const sample = extractProbeSample(json);
+      return sendJson(res, 200, {
+        ok: true,
+        latencyMs,
+        statusCode: httpRes.status,
+        upstreamPath,
+        sample,
+      });
+    } catch (err) {
+      const latencyMs = Date.now() - start;
+      if ((err as Error).name === "AbortError") {
+        return sendJson(res, 200, {
+          ok: false,
+          latencyMs,
+          error: {
+            code: "timeout",
+            message: `probe exceeded ${PROBE_TIMEOUT_MS}ms — upstream slow or unreachable`,
+          },
+        });
+      }
+      if (err instanceof UpstreamError) {
+        return sendJson(res, 200, {
+          ok: false,
+          latencyMs,
+          statusCode: err.status,
+          error: { code: err.code, message: err.message },
+        });
+      }
+      return sendJson(res, 200, {
+        ok: false,
+        latencyMs,
+        error: { code: "unknown", message: (err as Error).message },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   return sendError(res, 404, "not_found", `no admin route for ${req.method} ${pathname}`);
+}
+
+// Pull a short, human-readable text snippet out of an upstream chat /
+// responses success body. Best-effort: probes mostly care about success/fail,
+// but echoing the model's actual greeting confirms the wire is end-to-end.
+function extractProbeSample(json: Record<string, unknown>): string | null {
+  // Chat completions: choices[0].message.content
+  const choices = json.choices as unknown;
+  if (Array.isArray(choices) && choices.length > 0) {
+    const msg = (choices[0] as Record<string, unknown>)?.message as
+      | Record<string, unknown>
+      | undefined;
+    const content = msg?.content;
+    if (typeof content === "string") return content.slice(0, 200);
+  }
+  // Responses API: output[0].content[0].text or output_text shortcut.
+  const outputText = json.output_text;
+  if (typeof outputText === "string") return outputText.slice(0, 200);
+  const output = json.output as unknown;
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      const content = (item as Record<string, unknown>)?.content;
+      if (Array.isArray(content)) {
+        for (const c of content) {
+          const text = (c as Record<string, unknown>)?.text;
+          if (typeof text === "string") return text.slice(0, 200);
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function serveStatic(res: ServerResponse, pathname: string): void {
