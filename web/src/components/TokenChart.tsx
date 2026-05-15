@@ -203,6 +203,28 @@ export function TokenChart({ data }: { data: TokenTimeseriesResponse }) {
     [allSeries, hidden]
   );
 
+  // Sum prompt + cached tokens across the currently visible series so the
+  // chart can render cache hits as slim bars under the curve. Aggregating
+  // bucket-by-bucket here (not in render) keeps mouse hover snappy.
+  const cacheAgg = useMemo(() => {
+    const n = data.buckets.length;
+    const cached = new Array(n).fill(0);
+    const prompt = new Array(n).fill(0);
+    let totalCached = 0;
+    let totalPrompt = 0;
+    for (const s of visibleSeries) {
+      for (let i = 0; i < n; i++) {
+        const c = s.cached_tokens?.[i] ?? 0;
+        const p = s.prompt_tokens?.[i] ?? 0;
+        cached[i] += c;
+        prompt[i] += p;
+        totalCached += c;
+        totalPrompt += p;
+      }
+    }
+    return { cached, prompt, totalCached, totalPrompt };
+  }, [visibleSeries, data.buckets.length]);
+
   const yMax = useMemo(() => {
     let peak = 0;
     for (const s of visibleSeries) {
@@ -210,8 +232,14 @@ export function TokenChart({ data }: { data: TokenTimeseriesResponse }) {
         if (v > peak) peak = v;
       }
     }
+    // Cache prompt totals can exceed any single completion-side spike, so
+    // include them in the y-axis ceiling — otherwise the bars would clip
+    // above the plot area.
+    for (const v of cacheAgg.prompt) {
+      if (v > peak) peak = v;
+    }
     return niceCeil(peak);
-  }, [visibleSeries]);
+  }, [visibleSeries, cacheAgg.prompt]);
 
   const bucketCount = data.buckets.length;
   const plotW = CHART_W - PAD_LEFT - PAD_RIGHT;
@@ -284,14 +312,49 @@ export function TokenChart({ data }: { data: TokenTimeseriesResponse }) {
   }
 
   const allEmpty = visibleSeries.every((s) => s.total === 0);
+  const hitRate =
+    cacheAgg.totalPrompt > 0 ? (cacheAgg.totalCached / cacheAgg.totalPrompt) * 100 : 0;
 
   const borderColor = token.colorBorderSecondary;
   const subtleColor = token.colorTextSecondary;
   const accentColor = token.colorPrimary;
   const fgColor = token.colorText;
+  const cachedBarColor = token.colorSuccess;
+  const promptGhostColor = token.colorFillSecondary;
+
+  // Bar slot = same horizontal span the dot at bucket i occupies. For two or
+  // more buckets the natural slot width is stepX; we cap at 18px so dense
+  // hour-bucket windows don't overdraw, and 2px min for short windows.
+  const slot = bucketCount > 1 ? stepX : plotW;
+  const barW = Math.max(2, Math.min(18, slot * 0.55));
 
   return (
     <div style={{ position: "relative" }}>
+      {/* Hit-rate summary above the chart. Two lines: big rate, then the
+          tokens that make it up. Cheap enough to render even when no cache
+          data exists (shows 0.0% / 0 cached / 0 prompt). */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 12,
+          marginBottom: 8,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <span style={{ fontSize: 14, color: subtleColor }}>
+          {t("cache.title")}
+        </span>
+        <span style={{ fontSize: 22, fontWeight: 600, color: cachedBarColor }}>
+          {hitRate.toFixed(1)}%
+        </span>
+        <span style={{ fontSize: 12, color: subtleColor }}>
+          {t("cache.windowSummary", {
+            cached: formatTokens(cacheAgg.totalCached),
+            prompt: formatTokens(cacheAgg.totalPrompt),
+          })}
+        </span>
+      </div>
       <svg
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
         width="100%"
@@ -353,6 +416,45 @@ export function TokenChart({ data }: { data: TokenTimeseriesResponse }) {
             >
               {xLabelFor(i)}
             </text>
+          );
+        })}
+
+        {/* Cache-hit bars: ghost = prompt tokens, fill = cached tokens.
+            Rendered before the line/area so the curve sits on top and stays
+            the dominant visual. Bars are thin and translucent — they're
+            ancillary context, not the primary signal. */}
+        {data.buckets.map((_, i) => {
+          const cx = xFor(i);
+          const p = cacheAgg.prompt[i];
+          const c = cacheAgg.cached[i];
+          if (p === 0 && c === 0) return null;
+          const promptY = yFor(p);
+          const cachedY = yFor(c);
+          const baselineY = PAD_TOP + plotH;
+          return (
+            <g key={`cache-bar-${i}`} opacity={hover?.bucketIdx === i ? 1 : 0.7}>
+              {p > 0 && (
+                <rect
+                  x={cx - barW / 2}
+                  y={promptY}
+                  width={barW}
+                  height={baselineY - promptY}
+                  fill={promptGhostColor}
+                  rx={2}
+                />
+              )}
+              {c > 0 && (
+                <rect
+                  x={cx - barW / 2}
+                  y={cachedY}
+                  width={barW}
+                  height={baselineY - cachedY}
+                  fill={cachedBarColor}
+                  rx={2}
+                  opacity={0.55}
+                />
+              )}
+            </g>
           );
         })}
 
@@ -503,6 +605,41 @@ export function TokenChart({ data }: { data: TokenTimeseriesResponse }) {
           {visibleSeries.every((s) => (s.tokens[hover.bucketIdx] ?? 0) === 0) && (
             <div style={{ color: subtleColor, fontStyle: "italic" }}>
               {t("chart.tooltipEmpty")}
+            </div>
+          )}
+          {/* Cache hit row for this bucket, separated by a hairline. Only shown
+              when there's prompt data — otherwise it's just "0 / 0 / 0.0%" noise. */}
+          {cacheAgg.prompt[hover.bucketIdx] > 0 && (
+            <div
+              style={{
+                marginTop: 6,
+                paddingTop: 6,
+                borderTop: `1px dashed ${borderColor}`,
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 6,
+                color: subtleColor,
+              }}
+            >
+              <span>{t("cache.tooltipCached")}</span>
+              <span
+                style={{ fontVariantNumeric: "tabular-nums", color: cachedBarColor }}
+              >
+                {(cacheAgg.cached[hover.bucketIdx] ?? 0).toLocaleString()}
+              </span>
+              <span>{t("cache.tooltipPrompt")}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                {(cacheAgg.prompt[hover.bucketIdx] ?? 0).toLocaleString()}
+              </span>
+              <span>{t("cache.tooltipHitRate")}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                {(
+                  ((cacheAgg.cached[hover.bucketIdx] ?? 0) /
+                    cacheAgg.prompt[hover.bucketIdx]) *
+                  100
+                ).toFixed(1)}
+                %
+              </span>
             </div>
           )}
         </div>
