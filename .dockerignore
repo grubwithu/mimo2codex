@@ -19,3 +19,4 @@ LICENSE
 coverage
 .vscode
 .idea
+docker-compose.yml
