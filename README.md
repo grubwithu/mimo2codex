@@ -42,6 +42,7 @@ Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtuall
 - [Install — pick one](#install--pick-one) — npm / curl / clone
 - [Use](#use) — get a key, start the proxy, configure Codex
 - [.env + loader scripts](./doc/env-setup.md) — set up all keys once, per-OS quick guide (macOS/Linux + Windows)
+- [Docker deployment](./doc/docker.md) — `docker compose up -d`, data persistence, multi-arch images (new in v0.2.15)
 - [Codex Enable — one-click model switching in the webui (v0.2.6, replaces cc-switch)](#codex-enable--one-click-model-switching-in-the-webui-v026-replaces-cc-switch)
 - [Use with cc-switch](#use-with-cc-switch)
 - [Admin console](#admin-console) — dashboard, logs, models, settings
@@ -55,7 +56,7 @@ Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtuall
 - [Develop](#develop)
 - [License](#license)
 
-**Detailed guides:** [.env setup](./doc/env-setup.md) · [Codex Enable](./doc/codex-enable.md) · [Generic providers](./doc/generic-providers.md) · [mimoskill](./doc/mimoskill.md)
+**Detailed guides:** [.env setup](./doc/env-setup.md) · [Docker deployment](./doc/docker.md) · [Codex Enable](./doc/codex-enable.md) · [Generic providers](./doc/generic-providers.md) · [mimoskill](./doc/mimoskill.md)
 
 ## Why
 

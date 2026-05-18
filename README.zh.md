@@ -42,6 +42,7 @@
 - [安装——任选一种](#安装任选一种) —— npm / 一键脚本 / 手动构建
 - [使用](#使用) —— 拿 key、启动代理、配置 Codex
 - [.env 与加载脚本](./doc/env-setup.zh.md) —— 一次填好 key，分系统快速配置（mac/Linux + Windows）
+- [Docker 部署](./doc/docker.zh.md) —— docker compose 一键起、数据持久化、多架构镜像（v0.2.15 新增）
 - [Codex 启用 — webui 一键切模型（v0.2.6 新增，替代 cc-switch）](#codex-启用--webui-一键切模型v026-新增替代-cc-switch)
 - [配合 cc-switch 使用](#配合-cc-switch-使用)
 - [Admin 控制台](#admin-控制台) —— 概览 / 日志 / 模型 / 设置
@@ -54,7 +55,7 @@
 - [开发](#开发)
 - [许可证](#许可证)
 
-**详细文档：** [.env 配置](./doc/env-setup.zh.md) · [Codex 启用](./doc/codex-enable.zh.md) · [通用 provider](./doc/generic-providers.zh.md) · [mimoskill](./doc/mimoskill.zh.md)
+**详细文档：** [.env 配置](./doc/env-setup.zh.md) · [Docker 部署](./doc/docker.zh.md) · [Codex 启用](./doc/codex-enable.zh.md) · [通用 provider](./doc/generic-providers.zh.md) · [mimoskill](./doc/mimoskill.zh.md)
 
 ## 解决什么问题
 
