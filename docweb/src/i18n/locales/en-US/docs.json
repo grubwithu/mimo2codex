@@ -1,0 +1,16 @@
+{
+  "home": {
+    "title": "Documentation",
+    "subtitle": "Step-by-step guides, deployment recipes, and provider integrations."
+  },
+  "groups": {
+    "getting-started": "Getting started",
+    "providers": "Providers",
+    "deployment": "Deployment",
+    "reference": "Reference"
+  },
+  "toc": "On this page",
+  "fallbackNotice": "This article hasn't been translated to Chinese yet — showing the English version.",
+  "missing": "This document is not available.",
+  "backToList": "← Back to all docs"
+}

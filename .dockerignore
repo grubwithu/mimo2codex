@@ -2,6 +2,7 @@ node_modules
 dist
 web/node_modules
 web/dist
+docweb
 .git
 .github
 .claude

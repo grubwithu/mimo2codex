@@ -1,0 +1,97 @@
+{
+  "hero": {
+    "title": "mimo2codex",
+    "subtitle": "Let the latest OpenAI Codex CLI / desktop talk to **any** modern LLM — locally.",
+    "ctaPrimary": "Get Started",
+    "ctaSecondary": "GitHub",
+    "ctaTertiary": "View Docs",
+    "caption": "One-line install · Local proxy · ASCII-branded boot banner",
+    "badges": {
+      "node": "Node ≥ 18",
+      "license": "MIT License",
+      "openai": "Codex CLI / Desktop"
+    }
+  },
+  "features": {
+    "title": "Why mimo2codex",
+    "subtitle": "Built for engineers who want Codex without OpenAI lock-in.",
+    "items": {
+      "codex": {
+        "title": "Native Codex compatibility",
+        "body": "On-the-fly translation between Responses API and Chat Completions — no client changes."
+      },
+      "providers": {
+        "title": "Multi-provider routing",
+        "body": "MiMo · DeepSeek · Kimi · MiniMax · SenseNova, plus any OpenAI-compatible endpoint."
+      },
+      "thinking": {
+        "title": "Thinking-mode control",
+        "body": "`disableThinking` and forced-high-effort knobs, fine-grained per provider and per model."
+      },
+      "docker": {
+        "title": "Docker · multi-user",
+        "body": "Built-in auth and bootstrap-URL flow ready for shared-instance production deployments."
+      },
+      "websearch": {
+        "title": "Built-in web_search",
+        "body": "Native MiMo web_search with auto-fallback when the upstream cannot handle it."
+      },
+      "mimoskill": {
+        "title": "mimoskill extensions",
+        "body": "OCR · image generation · pet generation — fills capability gaps the upstream lacks."
+      }
+    }
+  },
+  "showcase": {
+    "title": "A polished admin console",
+    "subtitle": "Visibility into every byte that crosses the proxy.",
+    "dashboard": {
+      "heading": "Real-time observability",
+      "lead": "The Dashboard surfaces request volume, error rate, token usage, cache-hit rate, P50 latency, and live Token-burn trends — all in one screen.",
+      "points": {
+        "0": "Total requests · error count · token totals · cache-hit · P50 latency",
+        "1": "Hourly / daily token-burn chart with prompt + cache + completion layers",
+        "2": "Enabled-provider count and error-code distribution at a glance"
+      }
+    },
+    "logs": {
+      "heading": "Drill into every request",
+      "lead": "Chat logs let you inspect client-model vs upstream-model, expand into structured view or raw JSON, and audit every tool call.",
+      "points": {
+        "0": "Side-by-side Client model / Upstream model columns reveal rewrites",
+        "1": "Structured and Raw-JSON expansions per row",
+        "2": "Tool list (function / web_search / custom / namespace) shown inline",
+        "3": "CSV export · provider/model filters · old-log cleanup"
+      }
+    }
+  },
+  "quickstart": {
+    "title": "Three steps to ship",
+    "subtitle": "From npm install to a running proxy in under a minute.",
+    "steps": {
+      "install": {
+        "title": "Install",
+        "body": "Global install via npm — single binary, zero runtime config required."
+      },
+      "init": {
+        "title": "Initialize",
+        "body": "Generates ~/.mimo2codex/.env and providers.json with sane defaults."
+      },
+      "run": {
+        "title": "Run",
+        "body": "Starts the proxy on 127.0.0.1:8788 — open /admin/ to manage models and keys."
+      }
+    }
+  },
+  "providers": {
+    "title": "Works with what you already have",
+    "subtitle": "Click any provider for a step-by-step setup guide.",
+    "extra": "+ Any OpenAI-compatible endpoint — see the generic-providers guide"
+  },
+  "cta": {
+    "title": "Ready to switch your stack?",
+    "subtitle": "Free, open-source, and runs entirely on your machine. Your keys, your data.",
+    "primary": "Read the docs",
+    "secondary": "Report an issue"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "hero": {
+    "title": "mimo2codex",
+    "subtitle": "让最新版 OpenAI Codex CLI / 桌面应用对接**任意**现代 LLM —— 完全本地运行。",
+    "ctaPrimary": "立即开始",
+    "ctaSecondary": "GitHub",
+    "ctaTertiary": "查看文档",
+    "caption": "一行安装 · 本地代理 · 自带 ASCII 启动 banner",
+    "badges": {
+      "node": "Node ≥ 18",
+      "license": "MIT 协议",
+      "openai": "Codex CLI / 桌面端"
+    }
+  },
+  "features": {
+    "title": "为什么选择 mimo2codex",
+    "subtitle": "为想用 Codex 但不想被 OpenAI 绑定的工程师设计。",
+    "items": {
+      "codex": {
+        "title": "原生 Codex 兼容",
+        "body": "Responses API 与 Chat Completions 实时互译，客户端无需任何改动。"
+      },
+      "providers": {
+        "title": "多 Provider 路由",
+        "body": "MiMo · DeepSeek · Kimi · MiniMax · SenseNova，外加任意 OpenAI 兼容端点。"
+      },
+      "thinking": {
+        "title": "思考模式精控",
+        "body": "`disableThinking` 与强制 high effort 等开关，按 Provider 与 Model 细粒度生效。"
+      },
+      "docker": {
+        "title": "Docker · 多用户",
+        "body": "内置鉴权与 bootstrap URL 流程，开箱即用的共享实例生产部署方案。"
+      },
+      "websearch": {
+        "title": "web_search 内置",
+        "body": "MiMo 原生 web_search 支持，上游不支持时自动降级。"
+      },
+      "mimoskill": {
+        "title": "mimoskill 扩展",
+        "body": "OCR · 图片生成 · Pet 生成 —— 补齐上游能力之外的所有空白。"
+      }
+    }
+  },
+  "showcase": {
+    "title": "精致的管理控制台",
+    "subtitle": "穿过代理的每一个字节都尽在视野。",
+    "dashboard": {
+      "heading": "实时可观测性",
+      "lead": "概览面板一屏聚合请求量、错误率、Token 消耗、缓存命中率、P50 延迟和实时 Token 消耗趋势。",
+      "points": {
+        "0": "请求总数 · 错误数 · Token 合计 · 缓存命中率 · P50 延迟",
+        "1": "按小时 / 按日的 Token 消耗趋势图（提示 + 缓存 + 输出 分层）",
+        "2": "已启用 Provider 数量与错误码分布一目了然"
+      }
+    },
+    "logs": {
+      "heading": "深入到每一次请求",
+      "lead": "聊天日志可对照 Client 模型与 Upstream 模型，支持结构化与原始 JSON 两种展开视图，工具调用全程可审计。",
+      "points": {
+        "0": "Client model / Upstream model 双列展示，模型重写一目了然",
+        "1": "每一行支持结构化与原始 JSON 两种展开",
+        "2": "工具列表（function / web_search / custom / namespace）行内展示",
+        "3": "CSV 导出 · 按 Provider/模型过滤 · 一键清理旧日志"
+      }
+    }
+  },
+  "quickstart": {
+    "title": "三步上路",
+    "subtitle": "从 npm install 到代理跑起来，不到一分钟。",
+    "steps": {
+      "install": {
+        "title": "安装",
+        "body": "npm 全局安装，单一可执行文件，零运行时配置。"
+      },
+      "init": {
+        "title": "初始化",
+        "body": "生成 ~/.mimo2codex/.env 和 providers.json，附带合理默认值。"
+      },
+      "run": {
+        "title": "启动",
+        "body": "代理监听 127.0.0.1:8788 —— 打开 /admin/ 管理模型与密钥。"
+      }
+    }
+  },
+  "providers": {
+    "title": "兼容你已有的服务",
+    "subtitle": "点击任一 Provider 进入分步接入指南。",
+    "extra": "+ 任意 OpenAI 兼容端点 —— 参考通用 Provider 指南"
+  },
+  "cta": {
+    "title": "准备好切换技术栈了？",
+    "subtitle": "免费、开源、完全本地运行。你的密钥，你的数据。",
+    "primary": "阅读完整文档",
+    "secondary": "反馈问题"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "brand": "mimo2codex",
+  "nav": {
+    "home": "首页",
+    "docs": "文档",
+    "github": "GitHub"
+  },
+  "lang": {
+    "label": "语言",
+    "en": "English",
+    "zh": "中文"
+  },
+  "actions": {
+    "copy": "复制",
+    "copied": "已复制",
+    "viewSource": "查看源码"
+  },
+  "footer": {
+    "tagline": "Codex × 任意 LLM 的本地代理",
+    "links": {
+      "github": "GitHub",
+      "issues": "Issues",
+      "docs": "文档",
+      "npm": "npm"
+    },
+    "builtWith": "React + Ant Design 构建"
+  }
+}

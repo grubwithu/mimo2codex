@@ -1,0 +1,28 @@
+{
+  "brand": "mimo2codex",
+  "nav": {
+    "home": "Home",
+    "docs": "Docs",
+    "github": "GitHub"
+  },
+  "lang": {
+    "label": "Language",
+    "en": "English",
+    "zh": "中文"
+  },
+  "actions": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "viewSource": "View source"
+  },
+  "footer": {
+    "tagline": "Local proxy for Codex × any LLM",
+    "links": {
+      "github": "GitHub",
+      "issues": "Issues",
+      "docs": "Docs",
+      "npm": "npm"
+    },
+    "builtWith": "Built with React + Ant Design"
+  }
+}

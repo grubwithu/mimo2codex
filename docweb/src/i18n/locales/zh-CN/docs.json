@@ -1,0 +1,16 @@
+{
+  "home": {
+    "title": "文档中心",
+    "subtitle": "分步指南、部署方案与 Provider 接入文档。"
+  },
+  "groups": {
+    "getting-started": "快速开始",
+    "providers": "模型接入",
+    "deployment": "部署",
+    "reference": "参考"
+  },
+  "toc": "本页目录",
+  "fallbackNotice": "该文档暂无中文版 —— 当前显示英文原文。",
+  "missing": "该文档不存在。",
+  "backToList": "← 返回文档列表"
+}

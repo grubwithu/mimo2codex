@@ -1,0 +1,39 @@
+# BuildKit reads this file (named after the target Dockerfile) when the
+# repo-root .dockerignore would over-aggressively strip out doc/ images/ etc.
+# Build context = repo root.
+
+# ── Repo-wide noise ─────────────────────────────────────────────────────────
+**/node_modules
+**/.git
+**/.github
+**/.claude
+**/.codex
+**/.DS_Store
+**/.env
+**/.env.local
+**/coverage
+**/.vscode
+**/.idea
+**/.tsbuildinfo
+**/.vite
+**/dist
+
+# ── Main project sources not needed for the docweb image ────────────────────
+src/
+test/
+scripts/
+web/
+mimoskill/
+tutorial-video/
+docker-compose.yml
+Dockerfile
+*.tgz
+*.log
+
+# ── docweb-local artifacts (rebuilt inside the image) ───────────────────────
+docweb/node_modules
+docweb/dist
+docweb/.vite
+
+# Keep: doc/, images/, docweb/{src,public,index.html,vite.config.ts,
+#       tsconfig.json,package.json,package-lock.json,nginx.conf}

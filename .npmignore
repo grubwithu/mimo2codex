@@ -14,6 +14,9 @@ scripts/
 # Maintainer-only docs
 PUBLISHING.md
 
+# Standalone landing-page workspace (never published to npm)
+docweb/
+
 # Python caches that would otherwise get included from mimoskill/scripts/
 __pycache__/
 *.pyc
