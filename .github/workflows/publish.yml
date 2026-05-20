@@ -51,6 +51,15 @@ jobs:
             package-lock.json
             web/package-lock.json
 
+      # npm CLI ≥ 11.5.1 is required for Trusted Publisher OIDC auth on
+      # `npm publish` (earlier versions only use OIDC for `--provenance`, NOT
+      # for the actual publish PUT — leaving the publish to fall back to an
+      # empty `_authToken` and 404 with "Not Found"). Node 20's bundled npm
+      # is 10.x, so we upgrade explicitly. See:
+      # https://docs.npmjs.com/trusted-publishers#cli-requirements
+      - run: npm install -g npm@latest
+      - run: npm --version
+
       - run: npm ci
 
       - name: Verify tag matches package.json version
