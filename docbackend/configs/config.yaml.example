@@ -1,0 +1,54 @@
+server:
+  http:
+    addr: 0.0.0.0:8080
+    timeout: 60s
+
+data:
+  postgres:
+    # DSN format: postgres://user:pass@host:5432/dbname?sslmode=disable
+    # When the value starts with "${" the loader treats it as an env reference.
+    dsn: ${DOCBACKEND_DSN}
+    maxOpenConns: 10
+    maxIdleConns: 2
+    connMaxLifetimeSec: 3600
+  # Path is resolved relative to this config file's directory unless absolute.
+  # In Docker the deploy sets DOCBACKEND_DOCS_DIR=/app/doc to override.
+  # Locally, the default `../../doc` resolves from docbackend/configs/ up to
+  # mimo2codex/doc — the canonical repo-root markdown source.
+  docsDir: ../../doc
+
+upstream:
+  baseURL: ${DOCBACKEND_UPSTREAM_BASE_URL}
+  apiKey:  ${DOCBACKEND_UPSTREAM_API_KEY}
+  model:   ${DOCBACKEND_UPSTREAM_MODEL}
+  timeout: 90s
+
+ratelimit:
+  ideasPerMinute:    1
+  ideasPerDay:       10
+  commentsPerMinute: 3
+  commentsPerDay:    30
+  askPerMinute:      5
+  askPerDay:         100
+
+cors:
+  allowOrigins:
+    - https://mimodoc.chengj.online
+    - http://localhost:5174
+    - http://127.0.0.1:5174
+
+security:
+  # Salt mixed into sha256(ip + salt) for rate-limit bucketing without
+  # storing raw IPs. Override via DOCBACKEND_IP_SALT in production.
+  ipSalt: ${DOCBACKEND_IP_SALT}
+
+ask:
+  maxTokens: 1024
+  systemPromptZh: |
+    你是 mimo2codex 的官方文档助手。你只能基于下方提供的项目文档来回答用户问题。
+    如果文档里没有相关内容，直接告诉用户「文档里没有提到，建议去 GitHub 提 issue：https://github.com/7as0nch/mimo2codex/issues」。
+    回答尽量简洁、具体，能给命令或文件路径就给。
+  systemPromptEn: |
+    You are the official documentation assistant for mimo2codex. Answer ONLY using the project docs provided below.
+    If the docs don't cover the question, tell the user to open a GitHub issue at https://github.com/7as0nch/mimo2codex/issues.
+    Keep answers concise and concrete — include commands and file paths when relevant.

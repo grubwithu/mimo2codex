@@ -3,7 +3,12 @@
   "nav": {
     "home": "首页",
     "docs": "文档",
+    "ideas": "想法征集",
     "github": "GitHub"
+  },
+  "floats": {
+    "ideaTooltip": "提交一个想法 / 痛点",
+    "askTooltip": "问问 AI 助手（基于官方文档）"
   },
   "lang": {
     "label": "语言",

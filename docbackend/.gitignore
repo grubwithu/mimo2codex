@@ -1,0 +1,8 @@
+bin/
+*.log
+*.exe
+.idea/
+.vscode/
+*.tsbuildinfo
+.env
+.env.local

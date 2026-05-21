@@ -1,0 +1,103 @@
+{
+  "page": {
+    "title": "What would you like to see built? Write it down.",
+    "subtitle": "Drop ideas for software / web / mini-programs you wish existed — productivity tools, or fun projects to play with and learn from. I'll pick interesting ones to help build.",
+    "perks": {
+      "noCode": "No coding required",
+      "anonymous": "Anonymous OK",
+      "build": "I'll help with the interesting ones",
+      "cooperate": "Open to collaboration"
+    },
+    "openSubmit": "Submit an idea"
+  },
+  "detail": {
+    "back": "Back to ideas",
+    "notFound": "This idea doesn't exist or isn't public yet.",
+    "submittedAt": "Submitted at",
+    "loadError": "Failed to load — try again later."
+  },
+  "modal": {
+    "title": "Submit a new idea",
+    "bodyHint": "Markdown is supported — headings, lists, code blocks, all welcome.",
+    "cancel": "Cancel"
+  },
+  "form": {
+    "title": "Title",
+    "titlePlaceholder": "One sentence: what's the pain point?",
+    "body": "Details",
+    "bodyPlaceholder": "Be specific: what problem, in what context? What do you do about it now? What would the ideal experience look like?",
+    "background": "Your background (optional)",
+    "backgroundPlaceholder": "Your field / job — helps me understand the use case",
+    "contact": "Contact (optional)",
+    "contactPlaceholder": "Email / WeChat — only used for follow-ups, never shown publicly",
+    "submit": "Submit idea",
+    "submitting": "Submitting…",
+    "submittedTitle": "Got it — thanks!",
+    "submittedDesc": "I'll review before showing it publicly. If you left contact info and I pick yours, I'll reach out.",
+    "errors": {
+      "rate": "Slow down a bit — too many submissions in a short time.",
+      "validation": "Missing or malformed fields. Please double-check.",
+      "unknown": "Submission failed. Try again in a moment."
+    }
+  },
+  "list": {
+    "heading": "Public ideas",
+    "empty": "Be the first to drop an idea.",
+    "loadMore": "Load more",
+    "loadError": "Failed to load — try refreshing.",
+    "anonymous": "Anonymous"
+  },
+  "comments": {
+    "label_zero": "Comments",
+    "label_one": "1 comment",
+    "label_other": "{{count}} comments",
+    "open": "View comments",
+    "close": "Hide comments",
+    "bodyPlaceholder": "Share your thoughts (max 1000 chars)",
+    "send": "Send",
+    "sending": "Sending…",
+    "mine": "you",
+    "rateLimited": "Slow down — too many comments in a short time.",
+    "validationError": "Comment can't be empty.",
+    "loadError": "Failed to load comments."
+  },
+  "floats": {
+    "submitTooltip": "Submit your idea here",
+    "submitAttentionTitle": "Got a project idea?",
+    "submitAttentionDesc": "Click to drop it here — Markdown supported",
+    "askAttentionTitle": "Stuck on something?",
+    "askAttentionDesc": "I've read every doc and can look at screenshots — click to chat",
+    "askTitle": "Docs AI assistant",
+    "askDisclaimer": "Answers come from the official docs and may be wrong. For critical decisions, double-check on GitHub.",
+    "welcomeTitle": "I've read every mimo2codex doc",
+    "welcomeDesc": "Try one of these common questions — I'll pull from the docs and stream the answer back.",
+    "askPlaceholder": "Ask anything about mimo2codex…",
+    "samples": {
+      "firstTime": "How do I set things up the first time?",
+      "proxy": "Why am I seeing 502s? Any proxy fix?",
+      "generic": "How do I configure a generic provider?"
+    },
+    "youLabel": "You",
+    "assistantLabel": "Assistant",
+    "errorPrefix": "Error: ",
+    "rateLimited": "Slow down — too many questions per minute.",
+    "retrievedDocs": "Retrieved docs",
+    "retrievedDocsEmpty": "Searching docs…",
+    "thinkingTitle": "Thinking",
+    "thinkingHint": "(click to expand)",
+    "workflowTitle": "Retrieval workflow",
+    "searchPrefix": "search_docs",
+    "foundPrefix": "found:",
+    "clearHistory": "Clear chat",
+    "scrollToBottom": "Back to bottom",
+    "poweredBy": "AI-generated content may be inaccurate. Model: Xiaomi MiMo",
+    "emptyAnswer": "Generating answer…",
+    "attachImage": "Attach screenshot",
+    "attachHint": "Paste / drag / click to upload a config screenshot — the AI will look at it.",
+    "attachLimit": "Up to 4 images, auto-resized to 1280px / JPEG.",
+    "removeImage": "Remove",
+    "imageTooLarge": "Image was large — auto-compressed.",
+    "imageInvalid": "Unsupported image format.",
+    "imageMaxCount": "Maximum 4 images per message."
+  }
+}

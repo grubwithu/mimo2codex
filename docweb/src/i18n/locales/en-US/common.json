@@ -3,7 +3,12 @@
   "nav": {
     "home": "Home",
     "docs": "Docs",
+    "ideas": "Ideas",
     "github": "GitHub"
+  },
+  "floats": {
+    "ideaTooltip": "Submit an idea / pain point",
+    "askTooltip": "Ask the AI (docs-grounded)"
   },
   "lang": {
     "label": "Language",

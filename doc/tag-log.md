@@ -17,6 +17,12 @@ Release history of mimo2codex, newest first.
 
 ---
 
+## v0.4.4 — 2026-05-21
+
+- **[new]** **AI documentation assistant on the official docs site ([mimodoc.chengj.online](https://mimodoc.chengj.online/))**: click the bottom-right robot float — drop any common configuration question (first-time setup, why-502, generic-provider wiring, etc.) and the assistant runs a tool-calling agent loop over the project's `doc/*.md` corpus, returning a streamed markdown answer. The reasoning trace is shown in a collapsible "thinking" panel above the answer (auto-collapses once the answer starts). MiMo V2.5 multimodal is wired in — paste / drag / click the paperclip to upload a config screenshot and the AI looks at it before answering. Chat history lives in localStorage per anonymous browser id; clear-conversation button in the drawer header. 
+
+---
+
 ## v0.4.2 — 2026-05-21
 
 - **[new]** **Migrate the data directory from the admin UI**: top-right ⚙️ Settings → Local data directory → Migrate. Pick a target path, preview file count + total size, then a live progress bar copies SQLite + `.env` + `providers.json`. The server enters maintenance mode (503) while copying; the original directory is preserved so users can verify the new location before deleting. Auto-rollback on failure (partially-written destination is wiped + the old location is reopened). A persistent banner reminds the user to restart so the new directory takes effect; the resolver priority becomes CLI > env > pointer file (`~/.mimo2codex-pointer.json`) > default `~/.mimo2codex/`.

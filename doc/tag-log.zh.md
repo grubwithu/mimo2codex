@@ -17,6 +17,12 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 ---
 
+## v0.4.4 — 2026-05-21
+
+- **[new]** **官网新增 AI 文档助手 ([mimodoc.chengj.online](https://mimodoc.chengj.online/))**：右下角机器人浮球 —— 常见配置问题（第一次怎么配、为什么 502、通用 provider 怎么接）点开就能问。助手在项目 `doc/*.md` 上跑 tool calling agent 循环检索文档，流式渲染 markdown 回答。思考过程展示在答案上方的可折叠面板里（开始出答案时自动收拢）。接通了 MiMo V2.5 多模态 —— 粘贴 / 拖拽 / 点回形针上传配置截图，AI 直接看图诊断。聊天历史按匿名 client_id 存 localStorage，drawer 头部有「清空对话」按钮。
+
+---
+
 ## v0.4.2 — 2026-05-21
 
 - **[new]** **Admin UI 一键迁移数据目录**：右上 ⚙️ 设置 → 本地数据目录 → 迁移到新目录。选目标路径 → 预览将复制的文件数和大小 → 进度条流式复制 SQLite + `.env` + `providers.json`。迁移期间服务进入维护模式（503），原目录保留待用户验证后手动清理；失败自动回滚（清空目标已写入的部分 + 重新打开原目录）。完成后顶部出现常驻提示 banner 提醒用户重启生效。解析优先级变为 CLI > env > 指针文件（`~/.mimo2codex-pointer.json`）> 默认 `~/.mimo2codex/`。

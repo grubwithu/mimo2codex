@@ -21,3 +21,5 @@ venv/
 
 # docker-compose bind mount target (contains sqlite + .env + providers.json with keys)
 .mimo2codex/
+
+config.yaml

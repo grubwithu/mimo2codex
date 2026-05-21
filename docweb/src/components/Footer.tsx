@@ -22,6 +22,7 @@ export default function Footer() {
             {t("footer.links.issues")}
           </a>
           <Link to="/docs">{t("footer.links.docs")}</Link>
+          <Link to="/ideas">{t("nav.ideas")}</Link>
           <a href={NPM_URL} target="_blank" rel="noreferrer">
             {t("footer.links.npm")}
           </a>

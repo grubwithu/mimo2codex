@@ -14,7 +14,7 @@
 // CTA that navigates straight to it.
 
 import type { ReactNode } from "react";
-import { DatabaseOutlined, GlobalOutlined } from "@ant-design/icons";
+import { RobotOutlined } from "@ant-design/icons";
 
 export interface BilingualText {
   en: string;
@@ -44,64 +44,35 @@ export interface ReleaseNote {
 }
 
 // ── Entries ──────────────────────────────────────────────────────────────
-// Most recent first. Anything missing the user has seen scrolls into view.
+// Most recent first. Per the v0.4.3 release: we keep ONLY the latest version
+// here so the in-app "What's new" modal stays tight — older release detail
+// lives in doc/tag-log.{md,zh.md} for users who want the full history.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "0.4.2",
+    version: "0.4.4",
     date: "2026-05-21",
     title: {
-      en: "Data-dir migration in the UI + official docs site",
-      zh: "Admin UI 数据迁移 + 官网文档站",
+      en: "AI documentation assistant on mimodoc",
+      zh: "官网新增 AI 文档助手",
     },
     highlights: [
       {
         kind: "new",
-        icon: <DatabaseOutlined />,
+        icon: <RobotOutlined />,
         title: {
-          en: "Migrate your data directory from the admin UI",
-          zh: "Admin UI 一键迁移数据目录",
+          en: "Ask the AI on mimodoc.chengj.online",
+          zh: "不懂的常见问题，问 AI 小助手",
         },
         description: {
-          en: "Pick a target path → preview the file count and total size → live progress bar copies SQLite + .env + providers.json. The server is in maintenance mode (503) while copying; the original directory is kept so you can verify the new location before deleting.",
-          zh: "选目标路径 → 预览将复制的文件数和大小 → 进度条流式复制 SQLite + .env + providers.json。迁移期间服务进入维护模式（503），原目录保留，待你验证新目录无误后再手动删除。",
+          en: "The official docs site now has an AI assistant float (bottom-right robot). For common configuration questions — first-time setup, why-502, generic-provider wiring, etc. — drop the question and the assistant agent-loops over the project docs and streams a markdown answer. Supports image upload (paste / drag a config screenshot) for MiMo V2.5 to diagnose visually. Thinking trace shows in a collapsible panel above each answer.",
+          zh: "官网右下角新增 AI 文档助手浮球。常见配置问题 —— 第一次怎么配、为什么 502、通用 provider 怎么接 —— 直接问，助手在项目文档上跑 agent 检索，流式给出 markdown 回答。支持上传配置截图（粘贴 / 拖拽），MiMo V2.5 多模态直接看图诊断。每个回答上方有可折叠的思考过程面板。",
         },
         location: {
-          en: "Top-right ⚙️ Settings → Local data directory → Migrate to a new directory",
-          zh: "右上 ⚙️ 设置 → 本地数据目录 → 迁移到新目录",
+          en: "mimodoc.chengj.online → bottom-right 🤖 float",
+          zh: "mimodoc.chengj.online → 右下角 🤖 浮球",
         },
-      },
-      {
-        kind: "doc",
-        icon: <GlobalOutlined />,
-        title: {
-          en: "Official docs site",
-          zh: "官方文档站点",
-        },
-        description: {
-          en: "All docs and tutorials now live at mimodoc.chengj.online — start there when you're stuck. The footer link points straight at it.",
-          zh: "完整文档与教程都汇集在 mimodoc.chengj.online，不懂的先来这里看。Footer 已经接好了直达入口。",
-        },
-        location: {
-          en: "Footer → 📖 Docs",
-          zh: "页脚 → 📖 文档",
-        },
-        ctaLabel: { en: "Open the docs", zh: "打开文档" },
+        ctaLabel: { en: "Try it", zh: "去试试" },
         ctaHref: "https://mimodoc.chengj.online/",
-      },
-      {
-        kind: "fixed",
-        title: {
-          en: "Hide server-only Codex entries in local mode",
-          zh: "本地代理模式隐藏 server-only Codex 入口",
-        },
-        description: {
-          en: "Export / Import to local and the History tab on the Codex 接入 page only make sense in Docker auth deployments. They're hidden now when running as a local single-user proxy.",
-          zh: "「Codex 接入」页的「导出到本地」/「从本地导入」按钮与 History tab 只在 Docker 鉴权部署模式下有意义，本地代理模式现已隐藏，减少视觉噪音。",
-        },
-        location: {
-          en: "Codex 接入 page — only visible when authMode = on",
-          zh: "Codex 接入 页面 —— 仅在 authMode = on 时显示",
-        },
       },
     ],
   },

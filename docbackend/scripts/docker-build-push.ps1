@@ -1,63 +1,51 @@
 <#
 .SYNOPSIS
-  Build the mimo2codex-docweb image and push it to Docker Hub.
+  Build the mimo2codex-docbackend image and push it to Docker Hub.
 
 .DESCRIPTION
-  Uses Docker Buildx to produce multi-arch Linux images (amd64 + arm64 by
-  default) from a Windows host. Docker Desktop's WSL2 backend handles the
-  Linux runtime; QEMU emulation handles the arm64 cross-build.
+  Multi-arch Linux build (amd64 + arm64) via Docker Buildx, run from a Windows
+  host. The build context is the REPO ROOT (not docbackend/) because the
+  Dockerfile needs `COPY doc /app/doc`.
 
   Assumptions
     * `docker login` has already been done.
-    * Run from anywhere — the script resolves paths relative to itself.
+    * Run from anywhere — paths are resolved relative to this script.
 
 .PARAMETER Username
-  Docker Hub username (image namespace). Falls back to $env:DOCKERHUB_USERNAME.
+  Docker Hub username. Falls back to $env:DOCKERHUB_USERNAME, then to the
+  username stashed by the Docker Desktop credential helper.
 
 .PARAMETER Repo
-  Repository name on Docker Hub. Default: mimo2codex-docweb.
+  Repository name on Docker Hub. Default: mimo2codex-docbackend.
 
 .PARAMETER Tags
-  Tags to apply. Default (when omitted): the version read from the repo-root
-  package.json (e.g. "0.4.2") + "latest". A `sha-<short>` tag is always auto-
-  appended when invoked inside a git checkout, regardless of -Tags.
-
-  Why both: a semver tag (0.4.2) is what your k8s / docker-compose manifest
-  should pin to so updates trigger a rollout; `latest` is for casual
-  `docker run` users. If you only want one of them, pass -Tags explicitly.
+  Default (when omitted): the version read from the repo-root package.json
+  (e.g. "0.4.2") + "latest". A `sha-<short>` tag is always auto-appended when
+  invoked inside a git checkout, regardless of -Tags.
 
 .PARAMETER Platforms
   Target platforms (comma list in buildx form). Default: linux/amd64,linux/arm64.
 
 .PARAMETER NoPush
-  Build only — don't push. Combined with --load makes the image available
-  locally for `docker run`.
+  Build only — don't push.
 
 .PARAMETER LoadLocal
-  Single-arch build that loads the result into the local Docker daemon
-  (overrides Platforms to the host arch). Useful for smoke-testing.
+  Single-arch build that loads the result into the local Docker daemon.
 
 .EXAMPLE
-  # Default: tags = <docweb/package.json version>, latest, sha-<short>
-  pwsh docweb/scripts/docker-build-push.ps1
+  pwsh docbackend/scripts/docker-build-push.ps1
 
 .EXAMPLE
-  # Local smoke test, no push
-  pwsh docweb/scripts/docker-build-push.ps1 -LoadLocal -NoPush
+  pwsh docbackend/scripts/docker-build-push.ps1 -LoadLocal -NoPush
 
 .EXAMPLE
-  # Override the auto-detected version with explicit tags
-  pwsh docweb/scripts/docker-build-push.ps1 -Tags 0.4.2,latest
-
-.EXAMPLE
-  # Only the semver tag, no 'latest' (recommended for production releases)
-  pwsh docweb/scripts/docker-build-push.ps1 -Tags 0.4.2
+  pwsh docbackend/scripts/docker-build-push.ps1 -Tags 0.4.2
 #>
 
 [CmdletBinding()]
 param(
   [string]$Username = $env:DOCKERHUB_USERNAME,
-  [string]$Repo = "mimo2codex-docweb",
+  [string]$Repo = "mimo2codex-docbackend",
   [string[]]$Tags = @(),
   [string]$Platforms = "linux/amd64,linux/arm64",
   [switch]$NoPush,
@@ -78,7 +66,6 @@ function Get-DockerHubUsername {
 
   $hubKeys = @("https://index.docker.io/v1/", "index.docker.io", "docker.io")
 
-  # 1) Credential helper path (Docker Desktop's default on Windows uses `desktop`).
   $store = $config.credsStore
   if (-not $store -and $config.credHelpers) {
     foreach ($k in $hubKeys) {
@@ -95,13 +82,10 @@ function Get-DockerHubUsername {
           $parsed = $json | ConvertFrom-Json -ErrorAction Stop
           if ($parsed.Username) { return [string]$parsed.Username }
         }
-      } catch {
-        # next key
-      }
+      } catch {}
     }
   }
 
-  # 2) Plaintext auth entry fallback.
   if ($config.auths) {
     foreach ($k in $hubKeys) {
       $entry = $config.auths.$k
@@ -111,9 +95,7 @@ function Get-DockerHubUsername {
           $decoded = [System.Text.Encoding]::UTF8.GetString($bytes)
           $name = $decoded.Split(':', 2)[0]
           if ($name) { return $name }
-        } catch {
-          # next
-        }
+        } catch {}
       }
     }
   }
@@ -137,26 +119,21 @@ Could not detect Docker Hub username automatically.
 "@
 }
 
-# ── Resolve paths relative to this script ──────────────────────────────────
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
 $dockerfile = (Resolve-Path (Join-Path $scriptDir "..\Dockerfile")).Path
 
-# ── Default Tags from docweb/package.json `version` ────────────────────────
-# Both docweb and docbackend images share the SAME version, tracked in
-# docweb/package.json (root package.json belongs to the main mimo2codex CLI
-# and has its own release cadence — they're intentionally decoupled).
-# Bumping docweb/package.json + re-running this script produces a new
-# semver tag k8s can roll over to.
+# docbackend ships in lockstep with docweb — same image tag, same deploy
+# manifest. We read docweb/package.json (NOT the root one — root belongs to
+# the main mimo2codex CLI which has its own release cadence) so bumping
+# docweb's version automatically picks up here too.
 function Get-ProjectVersion {
   param([string]$PkgPath)
   if (-not (Test-Path $PkgPath)) { return $null }
   try {
     $obj = Get-Content $PkgPath -Raw | ConvertFrom-Json
     if ($obj.version) { return [string]$obj.version }
-  } catch {
-    # malformed package.json — fall through
-  }
+  } catch {}
   return $null
 }
 
@@ -174,7 +151,6 @@ if (-not $tagsExplicit) {
   }
 }
 
-# ── Always append git short SHA for audit trail ────────────────────────────
 $gitSha = $null
 Push-Location $repoRoot
 try {
@@ -182,9 +158,7 @@ try {
   if ($LASTEXITCODE -eq 0 -and $sha) {
     $gitSha = $sha.Trim()
   }
-} catch {
-  # git not installed or not a repo — skip
-} finally {
+} catch {} finally {
   Pop-Location
 }
 if ($gitSha) { $Tags = @($Tags + "sha-$gitSha") | Select-Object -Unique }
@@ -197,11 +171,10 @@ Write-Host ""
 Write-Host "▶ Building $imageBase" -ForegroundColor Cyan
 Write-Host "  Tags:      $($Tags -join ', ')"
 Write-Host "  Platforms: $Platforms"
-Write-Host "  Context:   $repoRoot"
+Write-Host "  Context:   $repoRoot   (repo root — needed so COPY ../doc works)"
 Write-Host "  Dockerfile: $dockerfile"
 Write-Host ""
 
-# ── Ensure buildx + a builder ──────────────────────────────────────────────
 & docker buildx version | Out-Null
 if ($LASTEXITCODE -ne 0) {
   throw "docker buildx is not available. Make sure Docker Desktop is running."
@@ -217,7 +190,6 @@ if (-not ($builders -match $builderName)) {
   & docker buildx use $builderName | Out-Null
 }
 
-# ── Assemble buildx args ───────────────────────────────────────────────────
 $buildArgs = @(
   "buildx", "build",
   "--file", $dockerfile,
@@ -259,8 +231,13 @@ if (-not $NoPush -and -not $LoadLocal) {
   }
   Write-Host ""
   Write-Host "Run anywhere:" -ForegroundColor Cyan
-  Write-Host "  docker run --rm -p 8080:80 ${imageBase}:$($Tags[0])"
+  Write-Host "  docker run --rm -p 8080:8080 ``"
+  Write-Host "    -e DOCBACKEND_DSN='postgres://...' ``"
+  Write-Host "    -e DOCBACKEND_UPSTREAM_BASE_URL='https://...' ``"
+  Write-Host "    -e DOCBACKEND_UPSTREAM_API_KEY='sk-...' ``"
+  Write-Host "    -e DOCBACKEND_UPSTREAM_MODEL='mimo-v2.5' ``"
+  Write-Host "    -e DOCBACKEND_IP_SALT='any-random-string' ``"
+  Write-Host "    ${imageBase}:$($Tags[0])"
 } elseif ($LoadLocal) {
-  Write-Host "Loaded locally. Try:" -ForegroundColor Cyan
-  Write-Host "  docker run --rm -p 8080:80 ${imageBase}:$($Tags[0])"
+  Write-Host "Loaded locally."
 }

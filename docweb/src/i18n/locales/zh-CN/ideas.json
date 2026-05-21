@@ -1,0 +1,104 @@
+{
+  "page": {
+    "title": "你想做什么样的软件？写下来。",
+    "subtitle": "记录你想做的软件 / web / 小程序 —— 提高效率的工具，或者拿来玩耍 / 学习的有趣项目都行。写下来，我会从中挑感兴趣的来帮你实现。",
+    "perks": {
+      "noCode": "不需要会代码",
+      "anonymous": "可匿名提交",
+      "build": "有趣的我会帮忙做",
+      "cooperate": "可以合作交流"
+    },
+    "openSubmit": "提交一个想法"
+  },
+  "detail": {
+    "back": "返回想法列表",
+    "notFound": "想法不存在或还未公开。",
+    "submittedAt": "提交时间",
+    "loadError": "加载失败，请稍后重试。"
+  },
+  "modal": {
+    "title": "提交一个新想法",
+    "bodyHint": "支持 Markdown 格式 —— 标题、列表、代码块都可以写。",
+    "cancel": "取消"
+  },
+  "form": {
+    "title": "标题",
+    "titlePlaceholder": "一句话描述你的痛点",
+    "body": "详细描述",
+    "bodyPlaceholder": "越具体越好：你想解决什么场景下的什么问题？现在你是怎么应对的？理想的体验是什么样？",
+    "background": "你的背景（可选）",
+    "backgroundPlaceholder": "你的专业 / 职业（帮我判断需求场景）",
+    "contact": "联系方式（可选）",
+    "contactPlaceholder": "邮箱 / 微信，仅用于回访，不公开",
+    "submit": "提交想法",
+    "submitting": "提交中…",
+    "submittedTitle": "已收到，感谢！",
+    "submittedDesc": "我会人工审核后再公开展示；如果你留了联系方式，挑中的话会找你聊。",
+    "errors": {
+      "rate": "提交太频繁了，请稍后再试。",
+      "validation": "信息不完整或格式有误，请检查后再提交。",
+      "unknown": "提交失败，请稍后再试。"
+    }
+  },
+  "list": {
+    "heading": "公开的想法",
+    "empty": "来当第一个提想法的人吧。",
+    "loadMore": "加载更多",
+    "loadError": "加载失败，请稍后刷新。",
+    "anonymous": "匿名"
+  },
+  "comments": {
+    "label": "{{count}} 条评论",
+    "label_zero": "评论",
+    "label_one": "1 条评论",
+    "label_other": "{{count}} 条评论",
+    "open": "查看评论",
+    "close": "收起评论",
+    "bodyPlaceholder": "聊聊你的看法（最多 1000 字）",
+    "send": "发送",
+    "sending": "发送中…",
+    "mine": "我",
+    "rateLimited": "评论太频繁了，请稍后再试。",
+    "validationError": "评论内容不能为空。",
+    "loadError": "评论加载失败。"
+  },
+  "floats": {
+    "submitTooltip": "在这儿提交你的想法",
+    "submitAttentionTitle": "想到什么有趣项目了？",
+    "submitAttentionDesc": "点这里把想法写给我 —— 支持 Markdown",
+    "askAttentionTitle": "不懂的来问我",
+    "askAttentionDesc": "我读完了所有文档，截图也能看 —— 点这里开聊",
+    "askTitle": "AI 文档助手",
+    "askDisclaimer": "答案来自官方文档，可能出错。重要结论请去 GitHub 核对。",
+    "welcomeTitle": "我读完了 mimo2codex 的所有文档",
+    "welcomeDesc": "试试这些常见问题，我会现场翻文档逐字回你。",
+    "askPlaceholder": "问点 mimo2codex 相关的问题…",
+    "samples": {
+      "firstTime": "第一次使用怎么配置？",
+      "proxy": "为什么会 502 ？代理怎么解决？",
+      "generic": "通用模型（generic）怎么配置？"
+    },
+    "youLabel": "你",
+    "assistantLabel": "助手",
+    "errorPrefix": "出错了：",
+    "rateLimited": "提问太频繁了，请稍等再试。",
+    "retrievedDocs": "已检索文档",
+    "retrievedDocsEmpty": "正在检索文档…",
+    "thinkingTitle": "思考过程",
+    "thinkingHint": "（点击展开）",
+    "workflowTitle": "检索工作流",
+    "searchPrefix": "搜索文档",
+    "foundPrefix": "找到：",
+    "clearHistory": "清空对话",
+    "scrollToBottom": "回到底部",
+    "poweredBy": "AI 生成内容可能不准确，模型来自小米 MiMo",
+    "emptyAnswer": "正在生成回答…",
+    "attachImage": "附加截图",
+    "attachHint": "粘贴 / 拖拽 / 点击上传配置截图，让 AI 帮你看",
+    "attachLimit": "最多 4 张，每张自动压缩到 1280px / JPEG",
+    "removeImage": "移除",
+    "imageTooLarge": "图片过大，已自动压缩",
+    "imageInvalid": "无法识别该图片格式",
+    "imageMaxCount": "最多附 4 张图片"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "mimo2codex-docweb",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.4.4",
   "type": "module",
   "description": "Landing + documentation site for mimo2codex (independent Vite workspace)",
   "scripts": {
@@ -11,6 +11,10 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
+    "@ant-design/x": "^1.0.0",
+    "@milkdown/crepe": "^7.21.1",
+    "@milkdown/kit": "^7.21.1",
+    "@milkdown/react": "^7.21.1",
     "antd": "^5.21.0",
     "highlight.js": "^11.10.0",
     "i18next": "^23.15.1",

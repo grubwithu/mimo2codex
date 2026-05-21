@@ -752,3 +752,82 @@ a:hover {
     display: none;
   }
 }
+
+/* ───── Milkdown / Crepe overrides ─────────────────────────────────────────
+   Crepe's default theme treats the editor like a centered document with
+   `padding: 60px 120px` on .ProseMirror, which leaves the text floating in
+   the middle with awkward gutters on either side. For our compact in-form
+   editor we want it to behave like a normal textarea: small padding, full
+   width, no document-style centering. */
+.milkdown-field {
+  --crepe-color-background: transparent;
+}
+.milkdown-field .milkdown {
+  background: transparent;
+}
+.milkdown-field .milkdown .ProseMirror {
+  padding: 12px 16px !important;
+  min-height: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.milkdown-field .milkdown .ProseMirror p {
+  margin: 0.4em 0;
+}
+.milkdown-field .milkdown .ProseMirror h1,
+.milkdown-field .milkdown .ProseMirror h2,
+.milkdown-field .milkdown .ProseMirror h3,
+.milkdown-field .milkdown .ProseMirror h4 {
+  font-family: inherit;
+  margin: 0.6em 0 0.3em;
+}
+.milkdown-field .milkdown .ProseMirror h1 { font-size: 1.6em; }
+.milkdown-field .milkdown .ProseMirror h2 { font-size: 1.35em; }
+.milkdown-field .milkdown .ProseMirror h3 { font-size: 1.15em; }
+
+/* The placeholder styling matches the rest of the input fields. */
+.milkdown-field .milkdown .ProseMirror .crepe-placeholder::before {
+  color: #bfbfbf;
+}
+
+/* Decorative header on top of the Milkdown editor. Looks like a window
+   chrome strip — three small dots on the left + a quick markdown hint —
+   gives the editor a recognizable "toolbar on top, content below" silhouette
+   even though Milkdown itself has no traditional toolbar. */
+.milkdown-field-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  user-select: none;
+}
+.milkdown-field-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e0e0e0;
+}
+.milkdown-field-dot:nth-child(1) { background: #ff6b6b; }
+.milkdown-field-dot:nth-child(2) { background: #ffbf47; }
+.milkdown-field-dot:nth-child(3) { background: #5cdd8b; }
+.milkdown-field-hint {
+  margin-left: 8px;
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 1;
+}
+.milkdown-field-hint code {
+  padding: 1px 4px;
+  margin: 0 2px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #595959;
+}
+.milkdown-field-body {
+  background: #fff;
+}

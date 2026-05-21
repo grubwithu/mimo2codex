@@ -1,0 +1,44 @@
+# Per-Dockerfile ignore for docbackend/Dockerfile. BuildKit picks this up
+# when the Dockerfile path is docbackend/Dockerfile and uses it INSTEAD of
+# the repo-root .dockerignore.
+#
+# Why we need our own:
+#   - The root .dockerignore excludes `doc/` (the main mimo2codex npm package
+#     ships docs via `files` whitelist, not via docker context).
+#   - docbackend's image specifically `COPY doc /app/doc` so the AI assistant
+#     has the markdown corpus — we MUST NOT exclude `doc/` here.
+
+# Heavy / irrelevant directories
+.git
+.github
+.claude
+.codex
+.idea
+.vscode
+node_modules
+
+# Other workspaces — docbackend doesn't need them
+docweb
+web
+dist
+mimoskill
+tutorial-video
+
+# Test data and large media
+test
+images
+
+# Per-platform / generated files
+*.tgz
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.DS_Store
+*.log
+
+# docbackend's own build artifacts (the binary is produced inside the
+# builder stage from go.mod / cmd / internal — we don't want a host-built
+# bin/ to override that)
+docbackend/bin
+docbackend/*.exe
+docbackend/*.log

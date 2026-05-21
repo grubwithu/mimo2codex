@@ -3,10 +3,14 @@ import { Layout } from "antd";
 
 import AppHeader from "./components/AppHeader";
 import Footer from "./components/Footer";
+import FloatingActions from "./components/FloatingActions";
 import Landing from "./pages/Landing";
 import DocsLayout from "./pages/DocsLayout";
 import DocsHome from "./pages/DocsHome";
 import DocArticle from "./pages/DocArticle";
+import IdeasPage from "./pages/IdeasPage";
+import IdeaDetailPage from "./pages/IdeaDetailPage";
+import SubmitIdeaPage from "./pages/SubmitIdeaPage";
 import NotFound from "./pages/NotFound";
 
 const { Content } = Layout;
@@ -18,6 +22,9 @@ export default function App() {
       <Content className="app-content">
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/ideas" element={<IdeasPage />} />
+          <Route path="/ideas/new" element={<SubmitIdeaPage />} />
+          <Route path="/ideas/:id" element={<IdeaDetailPage />} />
           <Route path="/docs" element={<DocsLayout />}>
             <Route index element={<DocsHome />} />
             <Route path=":slug" element={<DocArticle />} />
@@ -26,6 +33,7 @@ export default function App() {
         </Routes>
       </Content>
       <Footer />
+      <FloatingActions />
     </Layout>
   );
 }
