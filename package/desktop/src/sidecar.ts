@@ -13,6 +13,8 @@ export interface SidecarOptions {
   maxRestarts?: number;
   /** Time to wait between SIGTERM and SIGKILL during shutdown. Defaults to 2000ms. */
   killGraceMs?: number;
+  /** Extra env vars merged into process.env when spawning (e.g. ELECTRON_RUN_AS_NODE). */
+  extraEnv?: Record<string, string>;
 }
 
 export class SidecarManager extends EventEmitter {
@@ -28,6 +30,7 @@ export class SidecarManager extends EventEmitter {
       extraArgs: [],
       maxRestarts: 1,
       killGraceMs: 2000,
+      extraEnv: {},
       ...opts,
     };
     this.restartsRemaining = this.opts.maxRestarts;
@@ -62,7 +65,7 @@ export class SidecarManager extends EventEmitter {
     ];
     const child = spawn(this.opts.binPath, args, {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env },
+      env: { ...process.env, ...this.opts.extraEnv },
     });
     this.child = child;
     child.stdout?.on("data", (b: Buffer) => this.emit("stdout", b.toString("utf8")));

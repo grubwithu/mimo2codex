@@ -84,6 +84,7 @@ async function main(): Promise<void> {
     extraArgs: [paths.cliEntry],
     dataDir: userDataDir,
     port,
+    extraEnv: paths.env,
   });
   const { broadcastLog } = await import("./windows/logs.js");
   sidecar.on("stdout", (s: string) => {
@@ -176,9 +177,25 @@ async function main(): Promise<void> {
     }
   });
 
+  // Decide what to surface to the user on launch:
+  //
+  //   • First run (no usable provider key)  → open Settings, sidecar held back
+  //   • Autostart-launched (system boot)    → stay tray-only, no window
+  //   • Normal manual launch                → open admin UI so the user has
+  //                                            something to interact with;
+  //                                            otherwise the tray icon on Win
+  //                                            11 (folded by default) makes
+  //                                            the app feel like it didn't
+  //                                            launch at all
+  const isAutostartLaunched = process.argv.includes("--autostart-launched");
   if (isFirstRun) {
     log.info("first run → opening settings (sidecar not started)");
     openSettingsWindow();
+  } else if (!isAutostartLaunched) {
+    log.info("normal launch → opening admin UI");
+    openAdminWhenReady();
+  } else {
+    log.info("autostart launch → staying tray-only");
   }
 
   // Graceful shutdown — give sidecar a chance to stop before exiting.

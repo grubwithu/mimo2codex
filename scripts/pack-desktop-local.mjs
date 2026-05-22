@@ -20,6 +20,7 @@ const root = resolve(__dirname, "..");
 const desktop = resolve(root, "package/desktop");
 
 const argv = process.argv.slice(2);
+const targetFlag = argv.find((a) => a.startsWith("--target="))?.slice("--target=".length);
 const flags = {
   skipSidecar: argv.includes("--skip-sidecar"),
   forceIcons: argv.includes("--force-icons"),
@@ -28,8 +29,17 @@ const flags = {
   cleanEbCache: argv.includes("--clean-eb-cache"),
 };
 
-const platform = process.platform;
-const arch = process.arch;
+const VALID_TARGETS = ["win-x64", "win-arm64", "mac-x64", "mac-arm64"];
+if (targetFlag && !VALID_TARGETS.includes(targetFlag)) {
+  console.error(`Invalid --target=${targetFlag}. Valid: ${VALID_TARGETS.join(", ")}`);
+  process.exit(1);
+}
+
+// Defaults to host platform/arch; --target=<plat>-<arch> overrides for cross-build.
+const [tPlat, tArch] = targetFlag ? targetFlag.split("-") : [process.platform === "win32" ? "win" : process.platform === "darwin" ? "mac" : "linux", process.arch];
+const platform = tPlat === "win" ? "win32" : tPlat === "mac" ? "darwin" : "linux";
+const arch = tArch;
+const isCrossBuild = platform !== process.platform || arch !== process.arch;
 const platformLabel = platform === "win32" ? "Windows" : platform === "darwin" ? "macOS" : "Linux";
 
 // ── Pretty output helpers ─────────────────────────────────────────────────
@@ -69,6 +79,7 @@ function run(cmd, args, opts = {}) {
       stdio: opts.silent ? "pipe" : "inherit",
       shell: process.platform === "win32",
       cwd: opts.cwd ?? root,
+      env: opts.env ?? process.env,
     });
     let buf = "";
     if (opts.silent) {
@@ -131,11 +142,12 @@ step(n, totalSteps, "Checking dependencies");
   }
   note("root + package/desktop installed; better-sqlite3 prebuild present");
 
-  // Windows-specific: electron-builder downloads winCodeSign which contains
+  // Host-Windows specific: electron-builder downloads winCodeSign which contains
   // macOS dylib symlinks. Extracting them requires either Developer Mode or
   // admin privileges; without that, the build fails with cryptic 7zip errors
   // after 4 retry attempts. Detect this BEFORE we spend 5 minutes on sidecar.
-  if (platform === "win32") {
+  // (Skip when cross-building from a non-Win host targeting Mac, etc.)
+  if (process.platform === "win32") {
     if (!canCreateSymlinkOnWindows()) {
       fail(
         "Windows cannot create symbolic links with current privileges.\n" +
@@ -220,13 +232,13 @@ if (platform === "darwin") {
   }
 }
 
-// Step 3: sidecar bundle (the heavy step — Node binary download + npm install)
+// Step 3: sidecar bundle (CLI + node_modules for Electron-as-Node runtime)
 n++;
-step(n, totalSteps, `Sidecar bundle (CLI + Node ${process.env.SIDECAR_NODE_VERSION || "20.18.0"} for ${platform}-${arch})`);
+step(n, totalSteps, `Sidecar bundle (CLI + electron-ABI prebuilds for ${platform}-${arch})`);
 {
   const cliEntry = resolve(desktop, "resources/sidecar/dist/cli.js");
-  const nodeBin = resolve(desktop, "resources/sidecar/node-runtime", platform === "win32" ? "node.exe" : "node");
-  const present = existsSync(cliEntry) && existsSync(nodeBin);
+  const betterSqlite = resolve(desktop, "resources/sidecar/node_modules/better-sqlite3/build/Release/better_sqlite3.node");
+  const present = existsSync(cliEntry) && existsSync(betterSqlite);
   if (flags.skipSidecar) {
     if (!present) fail("--skip-sidecar set but resources/sidecar/ is incomplete. Run without the flag.");
     note("skipped (--skip-sidecar; reusing existing bundle)");
@@ -234,8 +246,15 @@ step(n, totalSteps, `Sidecar bundle (CLI + Node ${process.env.SIDECAR_NODE_VERSI
     if (present) {
       note("existing bundle will be rebuilt (set --skip-sidecar to reuse)");
     }
+    if (isCrossBuild) {
+      note(`cross-build: SIDECAR_PLATFORM=${platform} SIDECAR_ARCH=${arch}`);
+    }
     const t0 = performance.now();
-    await run("npm", ["run", "sidecar:build"]);
+    // Inject SIDECAR_PLATFORM / SIDECAR_ARCH so the bundler asks prebuild-install
+    // for the *target* darwin-arm64 / win32-x64 / etc. prebuilds, not host's.
+    await run("npm", ["run", "sidecar:build"], {
+      env: { ...process.env, SIDECAR_PLATFORM: platform, SIDECAR_ARCH: arch },
+    });
     ok(t0);
   }
 }
@@ -259,17 +278,23 @@ if (flags.clean) {
 
 // Step 6: electron-builder
 n++;
-step(n, totalSteps, `electron-builder → ${platformLabel} ${arch}`);
+step(n, totalSteps, `electron-builder → ${platformLabel} ${arch}${isCrossBuild ? " (cross-build)" : ""}`);
 {
-  const target = platform === "win32" ? "pack:win" : platform === "darwin" ? "pack:mac" : "pack";
+  // For cross-builds we call electron-builder directly with explicit target
+  // flags. For host-platform builds we use the package's pack:win / pack:mac
+  // npm script (semantically identical, kept as user-visible aliases).
+  const platFlag = platform === "win32" ? "--win" : platform === "darwin" ? "--mac" : "--linux";
+  const archFlag = `--${arch}`;
   const t0 = performance.now();
   try {
-    await run("npm", ["run", target], { cwd: desktop });
+    await run(
+      "npx",
+      ["electron-builder", platFlag, archFlag, "--publish", "never"],
+      { cwd: desktop }
+    );
     ok(t0);
   } catch (err) {
-    // The most common Windows failure is the winCodeSign symlink extraction.
-    // Surface targeted recovery steps before exiting.
-    if (platform === "win32") {
+    if (process.platform === "win32" && platform === "win32") {
       console.error(
         `\n${C.red}✗ electron-builder failed.${C.reset}\n\n` +
         `${C.bold}If the log above contains "Cannot create symbolic link"${C.reset}, your\n` +
@@ -279,6 +304,17 @@ step(n, totalSteps, `electron-builder → ${platformLabel} ${arch}`);
         "Other common issues:\n" +
         "  • Antivirus quarantining files in package/desktop/release/ — disable temporarily\n" +
         "  • Disk space: each pack writes ~300 MB to ~/AppData/Local/electron-builder/\n"
+      );
+    } else if (isCrossBuild && platform === "darwin") {
+      console.error(
+        `\n${C.red}✗ Cross-build mac from ${process.platform} failed.${C.reset}\n\n` +
+        "Cross-platform Mac builds from Windows are unreliable for .dmg.\n" +
+        `Options:\n` +
+        "  • Check if a .zip was still produced: ls package/desktop/release/*.zip\n" +
+        "    Mac users can unzip and drag the .app to Applications.\n" +
+        "  • Or copy this repo to a Mac and run:\n" +
+        "      npm ci && npm --prefix package/desktop install\n" +
+        "      npm run desktop:pack:local\n"
       );
     }
     throw err;
@@ -310,8 +346,15 @@ if (platform === "win32") {
   console.log(`  • Double-click the .exe → Windows SmartScreen "More info" → "Run anyway"`);
   console.log(`  • System tray (^) → m2c icon appears → first run shows Settings window`);
 } else if (platform === "darwin") {
-  console.log(`  • Open the .dmg → drag mimo2codex to /Applications`);
+  console.log(`  • Open the .dmg (or unzip the .zip) → drag mimo2codex to /Applications`);
   console.log(`  • First launch: right-click app → Open → Confirm (bypasses Gatekeeper)`);
+  console.log(`  • If "App is damaged" error: run in terminal once:`);
+  console.log(`        xattr -cr /Applications/mimo2codex.app`);
   console.log(`  • Menu bar (top-right) → m2c silhouette appears`);
+}
+if (isCrossBuild) {
+  console.log(`\n${C.yellow}⚠${C.reset}  ${C.dim}This is a cross-build (${process.platform}-${process.arch} → ${platform}-${arch}). It is`);
+  console.log(`   not smoke-tested on host. If the target machine can't run it,`);
+  console.log(`   build natively on a ${platformLabel} machine instead.${C.reset}`);
 }
 console.log("");

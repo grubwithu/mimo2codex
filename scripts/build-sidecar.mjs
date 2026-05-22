@@ -88,24 +88,37 @@ function dirSizeMb(p) {
   return Math.round(total / (1024 * 1024));
 }
 
-function smokeTestBundledNode() {
-  // Only safe when building for the same platform/arch we're running on.
+function smokeTestWithElectron() {
+  // Only safe when building for the same platform/arch we're running on
   if (platform !== process.platform || arch !== process.arch) {
     console.log(`[sidecar] skipping smoke test (cross-target ${platform}-${arch} vs host ${process.platform}-${process.arch})`);
     return;
   }
-  const nodeBin = platform === "win32" ? "node.exe" : "node";
-  const bundledNode = resolve(nodeRuntimeDir, nodeBin);
-  console.log("[sidecar] smoke-testing bundled Node + better-sqlite3 (ABI check)...");
+  const electronBin = platform === "win32"
+    ? resolve(desktopDir, "node_modules/electron/dist/electron.exe")
+    : platform === "darwin"
+    ? resolve(desktopDir, "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron")
+    : resolve(desktopDir, "node_modules/electron/dist/electron");
+
+  if (!existsSync(electronBin)) {
+    console.log(`[sidecar] skipping smoke test (electron binary not found at ${electronBin})`);
+    return;
+  }
+
+  console.log("[sidecar] smoke-testing better-sqlite3 with Electron as Node (ABI check)...");
   try {
-    execSync(`"${bundledNode}" -e "require('better-sqlite3'); console.log('OK')"`, {
-      cwd: sidecarOut,
-      stdio: "inherit",
-    });
+    execSync(
+      `"${electronBin}" -e "require('better-sqlite3'); console.log('OK')"`,
+      {
+        cwd: sidecarOut,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        stdio: "inherit",
+      }
+    );
   } catch (e) {
     throw new Error(
-      `Bundled sidecar smoke test failed — the sidecar will not start when launched by the desktop app.\n` +
-      `This usually means better-sqlite3's prebuild ABI doesn't match the bundled Node ${NODE_VERSION}.\n` +
+      `Sidecar smoke test failed — better-sqlite3 won't load under Electron-as-Node.\n` +
+      `Likely no electron-vXY prebuild matched electron@${ELECTRON_VERSION} ${platform}-${arch}.\n` +
       `Original error: ${e.message}`
     );
   }
@@ -115,10 +128,10 @@ async function main() {
   clean();
   buildCli();
   copyCliArtifacts();
-  await downloadNodeRuntime();
-  smokeTestBundledNode();
+  smokeTestWithElectron();
   writeFileSync(resolve(sidecarOut, "SIDECAR_INFO.json"), JSON.stringify({
-    nodeVersion: NODE_VERSION,
+    runtime: "electron",
+    electronVersion: ELECTRON_VERSION,
     platform,
     arch,
     builtAt: new Date().toISOString(),
