@@ -27,17 +27,14 @@ jobs:
             arch: x64
             target: win
             sidecar_platform: win32
-            artifact_glob: "*.exe"
           - os: macos-13
             arch: x64
             target: mac
             sidecar_platform: darwin
-            artifact_glob: "*-mac-x64.{dmg,zip}"
           - os: macos-14
             arch: arm64
             target: mac
             sidecar_platform: darwin
-            artifact_glob: "*-mac-arm64.{dmg,zip}"
 
     runs-on: ${{ matrix.os }}
 
@@ -83,13 +80,30 @@ jobs:
         if: always()
         shell: bash
         working-directory: package/desktop/release
-        run: ls -lah
+        run: |
+          ls -lah
+          # Hard-fail if electron-builder exited 0 but produced nothing.
+          # Without this we'd silently upload an empty artifact and the
+          # release job would be missing this row.
+          shopt -s nullglob
+          files=( *.dmg *.zip *.exe )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::release/ is empty — electron-builder produced no installer"
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mimo2codex-desktop-${{ matrix.target }}-${{ matrix.arch }}
-          path: package/desktop/release/${{ matrix.artifact_glob }}
+          # Multi-line globs — brace expansion (*.{dmg,zip}) isn't reliably
+          # honored by @actions/glob across runner versions; multi-line list
+          # works everywhere. Each matrix job runs in a fresh runner with
+          # its own release/ dir, so cross-arch contamination isn't possible.
+          path: |
+            package/desktop/release/*.dmg
+            package/desktop/release/*.zip
+            package/desktop/release/*.exe
           if-no-files-found: error
           retention-days: 14
 
