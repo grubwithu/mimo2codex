@@ -49,41 +49,37 @@ export interface ReleaseNote {
 // lives in doc/tag-log.{md,zh.md} for users who want the full history.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "0.4.5",
-    date: "2026-05-22",
+    version: "0.4.6",
+    date: "2026-05-23",
     title: {
       en: "Proxy support",
-      zh: "代理的支持",
+      zh: "部分体验的优化",
     },
     highlights: [
       {
-        kind: "new",
-        icon: <GlobalOutlined />,
+        kind: "fixed",
         title: {
-          en: "HTTP_PROXY / HTTPS_PROXY / NO_PROXY for outbound calls",
-          zh: "HTTP_PROXY / HTTPS_PROXY / NO_PROXY 让 mimo2codex 走代理",
+          en: "DeepSeek 400 \"Invalid assistant message\" with Chrome plugin",
+          zh: "Chrome 插件触发 DeepSeek 400 \"Invalid assistant message\" 已修复",
         },
         description: {
-          en: "Set HTTP_PROXY / HTTPS_PROXY in your shell, .env, or docker-compose environment and mimo2codex's upstream fetches route through it — same behavior as curl. NO_PROXY excludes are honored too. The startup banner shows a `proxy:` line that echoes the active configuration so env-detection is verifiable at a glance, and upstream-failure logs include the underlying cause code (ECONNREFUSED / ENOTFOUND / ETIMEDOUT) for easier diagnosis. Opt-out via MIMO2CODEX_NO_PROXY_FROM_ENV=1 (useful when your shell keeps HTTPS_PROXY set for curl/git but the proxy can't reach the upstream).",
-          zh: "在 shell / .env / docker-compose 的 environment 段设置 HTTP_PROXY / HTTPS_PROXY 即可，mimo2codex 向上游的请求会走该代理，行为与 curl 一致，NO_PROXY 排除列表也支持。启动 banner 多一行 `proxy:` 回显当前生效的代理，env 是否被识别一眼能看到；上游失败日志补上具体的错误码（ECONNREFUSED / ENOTFOUND / ETIMEDOUT），出问题不用再凭五个字猜。如果不想让 mimo2codex 跟着 shell 里的代理 env 走（典型场景：代理出口在境外、上游是国内域名），设 MIMO2CODEX_NO_PROXY_FROM_ENV=1 关掉。",
+          en: "When an assistant turn was assembled from a reasoning item plus function_call without any visible text part (Codex Chrome plugin pattern), the translated wire shape carried an explicit content: null alongside tool_calls. DeepSeek V4's strict validator treats that as \"neither field present\" and 400s. The OpenAI spec says content is optional when tool_calls is set, so we now omit the field instead of sending null. Reasoning-only turns get content: \"\" to stay spec-valid. Fixes issue #29.",
+          zh: "当 assistant 回合由 reasoning + function_call 拼成、没有可见 text 时（Codex Chrome 插件场景），翻译产物里会带显式 content: null 和 tool_calls。DeepSeek V4 的严格校验把这种形状当成\"两个字段都没\"于是 400。OpenAI 规范规定 tool_calls 存在时 content 是可选的，现在直接省略该字段而不是发 null。reasoning-only 回合回落到 content: \"\" 保持合规。修复 issue #29。",
         },
         location: {
-          en: "docker-compose.yml environment: / .env / shell export — startup banner shows the active proxy",
-          zh: "docker-compose.yml environment: / .env / shell export —— 启动 banner 会回显当前代理",
+          en: "Codex onboarding → DeepSeek (any model)",
+          zh: "Codex 接入 → DeepSeek（任意模型）",
         },
-        ctaLabel: { en: "Proxy FAQ", zh: "代理 FAQ" },
-        ctaHref: "https://github.com/7as0nch/mimo2codex/blob/main/doc/proxy-faq.zh.md",
       },
       {
-        kind: "improved",
-        icon: <RobotOutlined />,
+        kind: "fixed",
         title: {
-          en: "Clearer upstream-failure diagnostics",
-          zh: "上游连接失败日志更易定位",
+          en: "Windows + pnpm-global + Node 22 startup no longer crashes",
+          zh: "Windows + pnpm 全局安装 + Node 22 启动不再崩溃",
         },
         description: {
-          en: "The WARN line on upstream connect failure now carries the underlying error code and cause message alongside the top-level 'fetch failed'. The 502 response body to your client also includes the code. ECONNREFUSED on the proxy port vs ENOTFOUND on the upstream domain are now distinguishable at a glance.",
-          zh: "上游连接失败的 WARN 日志现在带上 underlying error code 和 cause message，不只是顶层的 'fetch failed'。返回给客户端的 502 错误信息里也包含这些细节。代理端口 ECONNREFUSED 还是上游域名 ENOTFOUND，一眼能区分。",
+          en: "On Windows with pnpm global install and Node 22, better-sqlite3 sometimes can't load its native binding (no prebuilt for node-v127-win32-x64), and mimo2codex would exit on startup with \"Could not locate the bindings file\". The proxy now logs a clear, multi-line warning (with the underlying error and a Windows/pnpm-specific remediation hint) and starts with the admin DB DISABLED. Core Codex ↔ Chat-Completions translation never needed the DB, so the proxy is fully usable out-of-the-box on the install setups that hit this binding gap. Fixes issue #30.",
+          zh: "Windows + pnpm 全局安装 + Node 22 时，better-sqlite3 有时拿不到对应 ABI (node-v127-win32-x64) 的 prebuilt native binding，mimo2codex 之前会直接退出报 \"Could not locate the bindings file\"。现在改成打印一段多行告警（包含原始错误信息和针对 Windows / pnpm 的修复建议）然后以 admin 关闭模式继续启动。核心 Codex ↔ Chat-Completions 翻译本来就不依赖 DB —— 让命中 binding 缺失的安装方式也能开箱可用。修复 issue #30。",
         },
       },
     ],

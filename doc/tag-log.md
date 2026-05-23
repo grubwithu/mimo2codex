@@ -17,7 +17,14 @@ Release history of mimo2codex, newest first.
 
 ---
 
-## (v0.4.5 — 2026-05-22)
+## (v0.4.6 — 2026-05-23)
+
+- **[fix]** **DeepSeek V4 400 `Invalid assistant message: content or tool_calls must be set` ([issue #29](https://github.com/7as0nch/mimo2codex/issues/29))**: when an assistant turn was assembled from a reasoning item + function_call without any visible text part (Codex Chrome plugin pattern), the wire shape became `{role:"assistant", content: null, tool_calls:[…], reasoning_content:"…"}`. DeepSeek's strict validator treats explicit `null` as "neither field present" and rejects. The OpenAI Chat Completions spec says `content` is optional when `tool_calls` is set, so we now OMIT the field instead of setting it to null. Reasoning-only fallback turns (rare: no text, no tools) get `content: ""` to satisfy the spec.
+- **[fix]** **Windows / pnpm-global / Node 22 startup crash ([issue #30](https://github.com/7as0nch/mimo2codex/issues/30))**: `mimo2codex` no longer exits when the admin sqlite database can't be opened at startup. Typical cause: pnpm's global install layout didn't fetch a prebuilt `better-sqlite3` binary for the user's Node ABI (`node-v127-win32-x64`), so `new Database()` throws `Could not locate the bindings file`. The proxy now logs a clear, multi-line warning (with the underlying error and a Windows/pnpm-specific hint) and starts with admin DISABLED. Core Codex ↔ Chat-Completions translation never needed the DB and now works out-of-the-box on the install setups that hit this binding gap.
+
+---
+
+## v0.4.5 — 2026-05-22
 
 - **[new]** **Proxy support**: mimo2codex's outbound calls honor `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` env vars — same behavior as `curl` / `git`. Declare them in `docker-compose.yml`'s `environment:` for Docker, or `export` from your shell / `.env` for local runs. The startup banner gains a `proxy:` line that echoes the active proxy so env-detection is verifiable at a glance. `MIMO2CODEX_NO_PROXY_FROM_ENV=1` opts out (for users whose shell keeps `HTTPS_PROXY` set for `curl`/`git` but don't want mimo2codex to follow).
 - **[opt]** Upstream connect-failure logs carry the underlying cause's `code` and `message` (e.g. `ECONNREFUSED` / `ENOTFOUND` / `ETIMEDOUT`); the same detail flows into the 502 `UpstreamError.message`, making proxy-port typos, DNS failures, and timeouts distinguishable at a glance.

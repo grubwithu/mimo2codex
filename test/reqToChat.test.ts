@@ -203,11 +203,11 @@ describe("reqToChat", () => {
       ],
     };
     const chat = reqToChat(req);
+    // issue #29: tool_calls 存在时省略 content 字段（不再发 content: null）。
     expect(chat.messages).toEqual([
       { role: "user", content: "list files" },
       {
         role: "assistant",
-        content: null,
         tool_calls: [
           {
             id: "call_abc",
@@ -288,11 +288,11 @@ describe("reqToChat", () => {
       ],
     };
     const chat = reqToChat(req);
+    // issue #29: tool_calls 存在时省略 content 字段。
     expect(chat.messages).toEqual([
       { role: "user", content: "search for cats" },
       {
         role: "assistant",
-        content: null,
         tool_calls: [
           {
             id: "call_1",
@@ -338,11 +338,11 @@ describe("reqToChat", () => {
     // The crucial structural invariant: assistant(tool_calls) MUST be
     // immediately followed by tool messages — no other assistant message
     // may be wedged in between.
+    // issue #29: tool_calls 存在时省略 content 字段。
     expect(chat.messages).toEqual([
       { role: "user", content: "run ls" },
       {
         role: "assistant",
-        content: null,
         tool_calls: [
           {
             id: "call_1",
@@ -1496,5 +1496,63 @@ describe("reqToChat — orphan tool message scrub (PR #10 regression)", () => {
     expect(chat.messages[idxAsst + 1].role).toBe("tool");
     expect(chat.messages[idxAsst + 1].tool_call_id).toBe("call_A");
     expect(chat.messages[idxAsst + 1].content).toBe("ra");
+  });
+
+  // ── issue #29 回归 ──────────────────────────────────────────────────────
+  // DeepSeek V4 把显式 content:null 当成"两个字段都没"，于是 400
+  // "Invalid assistant message: content or tool_calls must be set"。
+  // Codex Chrome 插件常发的 reasoning(encrypted_content) + function_call
+  // 序列以前会产生这种形状，现在应当省略 content 字段（OpenAI 规范允许
+  // tool_calls 存在时 content 缺省）。
+  it("reasoning(encrypted_content) + function_call without prior assistant text → no content:null (issue #29)", () => {
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "search for cats" },
+        {
+          type: "reasoning",
+          summary: [],
+          encrypted_content: "I should call the search tool.",
+        },
+        {
+          type: "function_call",
+          call_id: "call_1",
+          name: "search",
+          arguments: '{"q":"cats"}',
+        },
+        { type: "function_call_output", call_id: "call_1", output: "5 results" },
+      ],
+    };
+    const chat = reqToChat(req);
+    const asst = chat.messages.find((m) => m.role === "assistant");
+    expect(asst).toBeDefined();
+    // 关键断言 —— content 字段必须缺省，不能为 null。
+    expect("content" in (asst as object)).toBe(false);
+    expect((asst as { tool_calls?: unknown[] }).tool_calls).toHaveLength(1);
+    expect((asst as { reasoning_content?: string }).reasoning_content).toBe(
+      "I should call the search tool."
+    );
+  });
+
+  it("trailing reasoning with no tools and no assistant text emits content:'' not null (issue #29)", () => {
+    // 兜底场景：reasoning-only 回合（无 text 无 tools）。OpenAI 规范要求
+    // assistant 消息至少有 content 或 tool_calls 之一，所以补空字符串。
+    const req: ResponsesRequest = {
+      model: "deepseek-v4-pro",
+      input: [
+        { type: "message", role: "user", content: "hi" },
+        {
+          type: "reasoning",
+          summary: [{ type: "summary_text", text: "thinking…" }],
+        },
+      ],
+    };
+    const chat = reqToChat(req);
+    const asst = chat.messages.find((m) => m.role === "assistant");
+    expect(asst).toEqual({
+      role: "assistant",
+      content: "",
+      reasoning_content: "thinking…",
+    });
   });
 });

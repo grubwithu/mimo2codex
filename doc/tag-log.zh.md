@@ -17,7 +17,14 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 ---
 
-## (v0.4.5 — 2026-05-22)
+## (v0.4.6 — 2026-05-23)
+
+- **[fix]** **DeepSeek V4 400 `Invalid assistant message: content or tool_calls must be set` ([issue #29](https://github.com/7as0nch/mimo2codex/issues/29))**：当某个 assistant 回合由 reasoning + function_call 拼成、且没有可见 text 时（典型场景：Codex Chrome 插件），翻译产物形状是 `{role:"assistant", content: null, tool_calls:[…], reasoning_content:"…"}`。DeepSeek 的严格校验把显式 `null` 当成"两个字段都没有"于是 400。OpenAI Chat Completions 规范规定 `tool_calls` 存在时 `content` 是可选的，现在直接省略该字段而不是发 `null`。reasoning-only 兜底回合（少见：无 text 无 tools）回落到 `content: ""` 以满足"content 或 tool_calls 必须存在"。
+- **[fix]** **Windows / pnpm 全局安装 / Node 22 启动崩溃 ([issue #30](https://github.com/7as0nch/mimo2codex/issues/30))**：admin sqlite 启动打开失败时 `mimo2codex` 不再退出。典型原因：pnpm 全局安装布局没拿到对应 Node ABI（`node-v127-win32-x64`）的 `better-sqlite3` prebuilt 二进制，于是 `new Database()` 报 `Could not locate the bindings file`。现在改成打印一段多行告警（包含原始错误信息和针对 Windows / pnpm 的修复建议）然后以 admin 关闭模式继续启动。代理核心（Codex ↔ Chat-Completions 翻译）本来就不依赖 DB —— 这次让命中 binding 缺失的安装方式也能开箱可用。
+
+---
+
+## v0.4.5 — 2026-05-22
 
 - **[new]** **代理的支持**：mimo2codex 出站请求支持 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` 环境变量，行为与 `curl` / `git` 一致。Docker 部署在 `docker-compose.yml` 的 `environment:` 段声明，本地在 shell / `.env` 里 `export` 都可以。启动 banner 多一行 `proxy:` 回显当前生效的代理，env 是否被识别一眼能看到。`MIMO2CODEX_NO_PROXY_FROM_ENV=1` 可让 mimo2codex 无视代理 env（适合 shell 里为 `curl` / `git` 常驻了代理、但不想让 mimo2codex 跟着走的场景）。
 - **[opt]** 上游连接失败的日志补上 underlying cause 的 `code` 和 `message`（如 `ECONNREFUSED` / `ENOTFOUND` / `ETIMEDOUT`），同样的细节注入到 502 的 `UpstreamError.message`，代理端口写错、DNS 解析失败、超时这些情况一眼能分辨。

@@ -23,3 +23,5 @@ venv/
 .mimo2codex/
 
 config.yaml
+
+package/
