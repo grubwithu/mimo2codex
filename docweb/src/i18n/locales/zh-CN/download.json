@@ -1,0 +1,44 @@
+{
+  "title": "mimo2codex 桌面端",
+  "tagline": "后台运行，不依赖终端。托盘菜单一键打开 Admin UI、开机自启。",
+  "primaryCta": "下载 {{label}} 版（{{size}}）",
+  "otherPlatforms": "其他平台",
+  "download": "下载",
+  "copied": "已复制到剪贴板",
+  "copyFailed": "无法访问剪贴板",
+  "fetchFailed": {
+    "title": "无法获取发布信息",
+    "detail": "GitHub API 错误：{{error}}",
+    "fallback": "前往 GitHub Releases 手动下载"
+  },
+  "notReleasedYet": {
+    "title": "桌面端还没发布",
+    "detail": "桌面安装包尚未发布。先用命令行版试试："
+  },
+  "noMatchPlatform": {
+    "title": "自动识别不到你的系统",
+    "detail": "在下方「其他平台」里选你需要的版本。"
+  },
+  "why": {
+    "title": "为什么需要桌面端？",
+    "bg": {
+      "title": "后台运行",
+      "detail": "不用一直开着终端窗口，关掉是进托盘不是退出。"
+    },
+    "tray": {
+      "title": "一键打开管理界面",
+      "detail": "托盘菜单里直接打开 Admin UI、查看日志、重启 sidecar。"
+    },
+    "autostart": {
+      "title": "开机自启（可选）",
+      "detail": "勾上「Start on system boot」，开机就绪、不用再启动。"
+    }
+  },
+  "security": {
+    "title": "首次打开会有系统安全警告",
+    "mac": "macOS：右键应用 → 打开 → 确认（绕过 Gatekeeper，因为我们还没买代码签名证书）。",
+    "win": "Windows：SmartScreen 警告 → 「更多信息」→「仍要运行」。",
+    "sha": "正常现象——桌面包暂时无签名。下载后请校验 SHA256 与本页一致以确认完整性。"
+  },
+  "cliHint": "想用命令行版？npm install -g mimo2codex"
+}

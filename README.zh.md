@@ -27,6 +27,8 @@
 >
 > ℹ️ v0.2.17（2026-05-19）已作为**预览版本**先行发布同一特性 —— 生产环境请等 v0.3.0+。
 >
+> 🖥️ **新增：桌面端**（Windows 系统托盘 / macOS 顶栏菜单）—— 后台跑 mimo2codex，不再依赖终端窗口常开。命令行版不变，两者可同机共存。下载地址：**[mimodoc.chengj.online/download](https://mimodoc.chengj.online/download)**。
+>
 > 📜 完整版本历史 → **[doc/tag-log.zh.md](./doc/tag-log.zh.md)**（倒序排列；修复 / 新增 / 优化 / 文档 各类分门别类）。
 
 ![Admin 控制台 · 概览](https://raw.githubusercontent.com/7as0nch/mimo2codex/main/images/admin-dashboard.png)

@@ -1,0 +1,168 @@
+# Builds the Electron desktop shell as standalone installers (.exe / .dmg).
+# Independent from the npm `publish.yml` and `docker.yml` pipelines — touches
+# nothing on npm/Docker.
+#
+# Triggers:
+#   - push to any branch        → matrix runs (no release uploaded)
+#   - tag push `v*-desktop[.N]` → matrix runs AND release uploaded
+#   - workflow_dispatch         → manual run from Actions UI
+#
+# Skipped intentionally:
+#   - win-arm64: better-sqlite3 prebuilds for win32-arm64 are unreliable for
+#     v12.x; adding it back requires Task 7.1.1's probe-prebuild gate.
+
+name: build-desktop
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+            target: win
+            sidecar_platform: win32
+            artifact_glob: "*.exe"
+          - os: macos-13
+            arch: x64
+            target: mac
+            sidecar_platform: darwin
+            artifact_glob: "*-mac-x64.{dmg,zip}"
+          - os: macos-14
+            arch: arm64
+            target: mac
+            sidecar_platform: darwin
+            artifact_glob: "*-mac-arm64.{dmg,zip}"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install desktop deps
+        run: npm --prefix package/desktop install --no-audit --no-fund
+
+      - name: Generate brand icons (tray + app)
+        run: npm run brand:icons
+
+      - name: Build sidecar bundle (CLI + web admin + electron-ABI native modules)
+        env:
+          SIDECAR_PLATFORM: ${{ matrix.sidecar_platform }}
+          SIDECAR_ARCH: ${{ matrix.arch }}
+        run: npm run sidecar:build
+
+      - name: Build desktop main + renderer
+        run: npm --prefix package/desktop run build
+
+      - name: Package electron-builder
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # electron-builder uses hardlinks when caching; on GH runners with
+          # cached node_modules this can hit EXDEV / EPERM. Disable to be safe.
+          USE_HARD_LINKS: "false"
+          # Skip code signing (we don't have certificates yet — spec §4.5).
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        working-directory: package/desktop
+        run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never --config electron-builder.yml
+
+      - name: List release directory
+        if: always()
+        shell: bash
+        working-directory: package/desktop/release
+        run: ls -lah
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimo2codex-desktop-${{ matrix.target }}-${{ matrix.arch }}
+          path: package/desktop/release/${{ matrix.artifact_glob }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-desktop')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        shell: bash
+        run: ls -lah artifacts
+
+      - name: Compute SHA256 sums
+        shell: bash
+        working-directory: artifacts
+        run: |
+          : > SHA256SUMS.txt
+          for f in *.exe *.dmg *.zip; do
+            [ -f "$f" ] || continue
+            sha=$(sha256sum "$f" | awk '{print $1}')
+            printf "%s  %s\n" "$sha" "$f" >> SHA256SUMS.txt
+          done
+          cat SHA256SUMS.txt
+
+      - name: Assemble release body
+        shell: bash
+        run: |
+          {
+            echo "## Desktop builds"
+            echo ""
+            echo "| Platform | Arch  | File | SHA256 |"
+            echo "|----------|-------|------|--------|"
+            for f in artifacts/*.exe artifacts/*.dmg artifacts/*.zip; do
+              [ -f "$f" ] || continue
+              base=$(basename "$f")
+              sha=$(grep -F " $base" artifacts/SHA256SUMS.txt | awk '{print $1}')
+              case "$base" in
+                *win-x64*)   platform="Windows"; arch="x64";;
+                *win-arm64*) platform="Windows"; arch="arm64";;
+                *mac-x64*)   platform="macOS";   arch="x64";;
+                *mac-arm64*) platform="macOS";   arch="arm64";;
+                *)           platform="?";       arch="?";;
+              esac
+              echo "| $platform | $arch | \`$base\` | \`$sha\` |"
+            done
+            echo ""
+            echo "---"
+            echo ""
+            echo "📖 **Install & verification guide:** [mimodoc.chengj.online/download](https://mimodoc.chengj.online/download)"
+            echo ""
+            echo "Prefer the command line? \`npm install -g mimo2codex\` — same proxy, no tray."
+          } > release-body.md
+          cat release-body.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.exe
+            artifacts/*.dmg
+            artifacts/*.zip
+            artifacts/SHA256SUMS.txt
+          body_path: release-body.md
+          fail_on_unmatched_files: false
+          # Don't mark as latest (npm releases live under unsuffixed `v*` tags).
+          make_latest: "false"

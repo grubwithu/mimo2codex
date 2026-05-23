@@ -27,6 +27,8 @@ Local proxy that lets the **latest OpenAI Codex CLI / desktop** talk to virtuall
 >
 > ℹ️ v0.2.17 (2026-05-19) shipped the same feature as a **preview** — please use v0.3.0+ in production.
 >
+> 🖥️ **New: Desktop app** (Windows tray / macOS menu bar) — runs mimo2codex in the background with no terminal window. CLI is unchanged; the two can be installed side-by-side. Get it from **[mimodoc.chengj.online/download](https://mimodoc.chengj.online/download)**.
+>
 > 📜 Full version history → **[doc/tag-log.md](./doc/tag-log.md)** (newest first; fix / feat / opt categorized).
 
 ![Admin console · dashboard](https://raw.githubusercontent.com/7as0nch/mimo2codex/main/images/admin-dashboard.png)

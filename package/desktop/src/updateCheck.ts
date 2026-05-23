@@ -1,9 +1,15 @@
 import { net } from "electron";
 import { log } from "./logger.js";
 
-const RELEASES_URL = "https://api.github.com/repos/7as0nch/mimo2codex/releases/latest";
+// We list ALL releases (paginated; first page = 30 newest) and pick the
+// newest one whose tag ends with "-desktop" (or "-desktop.N"). Using
+// /releases/latest would surface CLI releases (v0.5.0) as if they were
+// desktop updates — same repo, different distribution channel.
+const RELEASES_URL = "https://api.github.com/repos/7as0nch/mimo2codex/releases?per_page=30";
 
-/** Returns the latest desktop release tag (e.g. "v0.5.0-desktop"), or null on any failure. */
+const DESKTOP_TAG_RE = /^v\d+\.\d+\.\d+-desktop(?:\.\d+)?$/;
+
+/** Returns the newest desktop release tag (e.g. "v0.5.0-desktop"), or null on any failure. */
 export async function fetchLatestDesktopTag(): Promise<string | null> {
   return new Promise((resolve) => {
     const req = net.request({ method: "GET", url: RELEASES_URL });
@@ -12,8 +18,15 @@ export async function fetchLatestDesktopTag(): Promise<string | null> {
       resp.on("data", (chunk: Buffer) => { body += chunk.toString(); });
       resp.on("end", () => {
         try {
-          const json = JSON.parse(body) as { tag_name?: string };
-          resolve(typeof json.tag_name === "string" ? json.tag_name : null);
+          const json = JSON.parse(body) as Array<{ tag_name?: string; draft?: boolean; prerelease?: boolean }>;
+          if (!Array.isArray(json)) { resolve(null); return; }
+          // GitHub returns releases sorted by created_at desc; first match wins.
+          // We deliberately accept prereleases (e.g. -desktop.1 RCs) so beta
+          // testers see updates too. Drafts are filtered out.
+          const found = json.find((r) =>
+            !r.draft && typeof r.tag_name === "string" && DESKTOP_TAG_RE.test(r.tag_name)
+          );
+          resolve(found?.tag_name ?? null);
         } catch {
           resolve(null);
         }

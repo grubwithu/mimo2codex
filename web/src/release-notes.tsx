@@ -14,7 +14,7 @@
 // CTA that navigates straight to it.
 
 import type { ReactNode } from "react";
-import { RobotOutlined, GlobalOutlined } from "@ant-design/icons";
+import { RobotOutlined, GlobalOutlined, DesktopOutlined } from "@ant-design/icons";
 
 export interface BilingualText {
   en: string;
@@ -56,6 +56,24 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       zh: "代理的支持",
     },
     highlights: [
+      {
+        kind: "new",
+        icon: <DesktopOutlined />,
+        title: {
+          en: "Desktop shell (Windows tray / macOS menu bar)",
+          zh: "桌面端（Windows 系统托盘 / macOS 顶栏）",
+        },
+        description: {
+          en: "Optional companion app that runs mimo2codex in the background — no terminal window required. First launch shows a 4-field settings form for picking a provider + API key; after that you open the admin UI in a window or your default browser straight from the tray. Quit from the menu stops the sidecar cleanly. The CLI version (`npm install -g mimo2codex`) is unchanged and lives alongside.",
+          zh: "可选的桌面壳子，后台跑 mimo2codex，不依赖终端窗口。首次启动会有 4 行设置窗让你填 provider 和 API Key；之后从托盘菜单一键打开 admin UI（窗内或浏览器）。菜单 Quit 干净退出 sidecar。命令行版（`npm install -g mimo2codex`）不变，两者可以共存。",
+        },
+        location: {
+          en: "System tray (Win) / menu bar (Mac) — visible after install",
+          zh: "Windows 系统托盘 / macOS 顶栏 —— 安装完即可见",
+        },
+        ctaLabel: { en: "Download", zh: "下载" },
+        ctaHref: "https://mimodoc.chengj.online/download",
+      },
       {
         kind: "new",
         icon: <GlobalOutlined />,

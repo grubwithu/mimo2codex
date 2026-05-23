@@ -1,0 +1,44 @@
+{
+  "title": "mimo2codex Desktop",
+  "tagline": "Run mimo2codex in the background. Tray icon. One-click admin UI. No terminal needed.",
+  "primaryCta": "Download for {{label}}  ({{size}})",
+  "otherPlatforms": "Other platforms",
+  "download": "Download",
+  "copied": "Copied to clipboard",
+  "copyFailed": "Couldn't access clipboard",
+  "fetchFailed": {
+    "title": "Couldn't fetch release info",
+    "detail": "GitHub API error: {{error}}",
+    "fallback": "Open GitHub Releases manually"
+  },
+  "notReleasedYet": {
+    "title": "Desktop builds not yet released",
+    "detail": "We haven't shipped a desktop release yet. For now, install the CLI:"
+  },
+  "noMatchPlatform": {
+    "title": "Your platform isn't auto-detected",
+    "detail": "Pick a build from \"Other platforms\" below."
+  },
+  "why": {
+    "title": "Why the desktop build?",
+    "bg": {
+      "title": "Runs in the background",
+      "detail": "No terminal window to keep open. Closes to tray, not the dock."
+    },
+    "tray": {
+      "title": "One-click admin",
+      "detail": "Open settings, view logs, restart sidecar — all from the tray menu."
+    },
+    "autostart": {
+      "title": "Launch at boot (optional)",
+      "detail": "Toggle \"Start on system boot\" from the tray; ready before you open Codex."
+    }
+  },
+  "security": {
+    "title": "First launch will show a security warning",
+    "mac": "macOS: right-click the app → Open → confirm (bypasses Gatekeeper for unsigned apps).",
+    "win": "Windows: SmartScreen → \"More info\" → \"Run anyway\".",
+    "sha": "These are expected — desktop builds aren't code-signed yet. Verify the SHA256 above matches the file you downloaded for safety."
+  },
+  "cliHint": "Prefer the command line? npm install -g mimo2codex"
+}

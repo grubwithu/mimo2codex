@@ -27,7 +27,15 @@ export interface SidecarPaths {
  *   matches Electron's closely enough that this almost always works).
  */
 export function sidecarPaths(): SidecarPaths {
-  const env = { ELECTRON_RUN_AS_NODE: "1" };
+  const env = {
+    // Run Electron's bundled Node as plain Node (no Chromium).
+    ELECTRON_RUN_AS_NODE: "1",
+    // Tell the CLI it's running under the desktop shell — disables the
+    // admin UI's "Update now" button (which would try to `npm install -g`
+    // an unrelated copy of the CLI; the right way to update is to grab a
+    // new desktop installer from mimodoc /download).
+    MIMO2CODEX_DESKTOP_PARENT: "1",
+  };
 
   if (app.isPackaged) {
     return {
