@@ -264,19 +264,59 @@ export default function Download() {
         </Space>
       </Card>
 
+      {/*
+        Mac install steps are pulled out into their own info-Alert above the
+        generic security warning. Two reasons:
+        1. The xattr command is mandatory for unsigned .app launched from a
+           browser-downloaded .zip — without it, every Mac user hits "App is
+           damaged, can't be opened". Burying it in a warning paragraph means
+           users skim past it and file a bug.
+        2. The command needs to be copy-pasted exactly; Antd's `copyable`
+           code block is the right primitive. A free-text paragraph forces
+           manual selection.
+        Shown to mac platform (detected or overridden); fallback warning below
+        still covers the "user didn't read the steps" path.
+      */}
+      {platform === "mac" && (
+        <Alert
+          type="info"
+          showIcon
+          message={t("macSteps.title")}
+          description={
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <span>{t("macSteps.intro")}</span>
+              <ol style={{ paddingLeft: 22, margin: 0 }}>
+                <li style={{ marginBottom: 6 }}>{t("macSteps.s1")}</li>
+                <li style={{ marginBottom: 6 }}>{t("macSteps.s2")}</li>
+                <li style={{ marginBottom: 6 }}>
+                  <div>{t("macSteps.s3")}</div>
+                  <Typography.Text
+                    code
+                    copyable={{ text: "xattr -cr /Applications/mimo2codex.app" }}
+                    style={{ display: "inline-block", marginTop: 4, fontSize: 13 }}
+                  >
+                    xattr -cr /Applications/mimo2codex.app
+                  </Typography.Text>
+                  <div>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {t("macSteps.s3Hint")}
+                    </Typography.Text>
+                  </div>
+                </li>
+                <li>{t("macSteps.s4")}</li>
+              </ol>
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       <Alert
         type="warning"
         showIcon
         message={t("security.title")}
         description={
           <Space direction="vertical">
-            {/*
-              macInstall is shown for Mac users (or when detection fails — better
-              to show install instructions everyone might need than hide them).
-              Win install is trivial (double-click .exe → NSIS handles it) so
-              there's no symmetric "winInstall" line.
-            */}
-            {platform !== "win" && <span>{t("security.macInstall")}</span>}
             <span>{t("security.mac")}</span>
             <span>{t("security.win")}</span>
             <span>{t("security.sha")}</span>

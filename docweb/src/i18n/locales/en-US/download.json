@@ -38,10 +38,18 @@
       "detail": "Toggle \"Start on system boot\" from the tray; ready before you open Codex."
     }
   },
+  "macSteps": {
+    "title": "macOS install & first launch (4 steps)",
+    "intro": "Desktop builds aren't code-signed yet, so macOS Gatekeeper blocks the .app extracted from a downloaded .zip with \"App is damaged, can't be opened\". Follow these 4 steps:",
+    "s1": "Double-click the downloaded .zip in your Downloads folder — Finder unzips it to mimo2codex.app.",
+    "s2": "Drag mimo2codex.app into the Applications folder (/Applications).",
+    "s3": "Open Terminal, paste the line below and press Enter:",
+    "s3Hint": "(This clears the browser-download quarantine flag. Without it, the next step would fail with \"is damaged\". The command produces no output — that's normal.)",
+    "s4": "Double-click mimo2codex.app in Applications. Look for the m2 icon in your menu bar to open the settings panel."
+  },
   "security": {
     "title": "First launch will show a security warning",
-    "macInstall": "macOS install: the download is a .zip. Double-click it in Downloads — Finder unzips it to mimo2codex.app. Drag the .app into /Applications.",
-    "mac": "macOS first launch: if you see \"App is damaged\" or \"can't be opened\", open Terminal and run once: xattr -cr /Applications/mimo2codex.app  — this removes the download quarantine flag. Then double-click. (Right-click → Open works on some older macOS versions but not all; the xattr command always works.)",
+    "mac": "macOS fallback: if you skipped the 4 steps above and double-clicking the app shows \"is damaged, can't be opened\", run xattr -cr /Applications/mimo2codex.app  once. (Right-click → Open works on some older macOS versions but not all; the xattr command always works.)",
     "win": "Windows: SmartScreen → \"More info\" → \"Run anyway\".",
     "sha": "These warnings are expected — desktop builds aren't code-signed yet. Verify the SHA256 above matches the file you downloaded.",
     "uninstall": "Uninstall: macOS — drag mimo2codex.app from /Applications to Trash; optionally wipe configs with `rm -rf ~/Library/Application\\ Support/mimo2codex-desktop`. Windows — Settings → Apps → mimo2codex → Uninstall."

@@ -17,7 +17,20 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 ---
 
-## (v0.4.5 — 2026-05-22)
+## (v0.4.8 — 2026-05-23)
+
+- **[new]** **桌面预览（beta）—— Windows 系统托盘 / macOS 顶栏桌面端**：可选的 Electron 壳子，后台跑 mimo2codex，不用一直挂着终端窗口。首次启动会有个小设置窗让你选 provider 并粘贴 API Key；之后从系统托盘 / 顶栏图标一键打开内嵌的 admin UI（窗内或默认浏览器都行）。sidecar 生命周期（启动 / 停止 / 改设置时重启）完全托管，菜单 **Quit** 干净退出。提供可选的"开机自启"开关。命令行版（`npm install -g mimo2codex`）完全不变，两者可在同一台机器共存 —— 桌面版作为独立的 `v*-desktop` 制品发布。这是 **beta** —— 安装、启动、sidecar、自更新链路还需要真实环境的里程验证，遇到任何卡点请反馈。下载和安装指引：<https://mimodoc.chengj.online/download>。
+
+---
+
+## (v0.4.6 — 2026-05-23)
+
+- **[fix]** **DeepSeek V4 400 `Invalid assistant message: content or tool_calls must be set` ([issue #29](https://github.com/7as0nch/mimo2codex/issues/29))**：当某个 assistant 回合由 reasoning + function_call 拼成、且没有可见 text 时（典型场景：Codex Chrome 插件），翻译产物形状是 `{role:"assistant", content: null, tool_calls:[…], reasoning_content:"…"}`。DeepSeek 的严格校验把显式 `null` 当成"两个字段都没有"于是 400。OpenAI Chat Completions 规范规定 `tool_calls` 存在时 `content` 是可选的，现在直接省略该字段而不是发 `null`。reasoning-only 兜底回合（少见：无 text 无 tools）回落到 `content: ""` 以满足"content 或 tool_calls 必须存在"。
+- **[fix]** **Windows / pnpm 全局安装 / Node 22 启动崩溃 ([issue #30](https://github.com/7as0nch/mimo2codex/issues/30))**：admin sqlite 启动打开失败时 `mimo2codex` 不再退出。典型原因：pnpm 全局安装布局没拿到对应 Node ABI（`node-v127-win32-x64`）的 `better-sqlite3` prebuilt 二进制，于是 `new Database()` 报 `Could not locate the bindings file`。现在改成打印一段多行告警（包含原始错误信息和针对 Windows / pnpm 的修复建议）然后以 admin 关闭模式继续启动。代理核心（Codex ↔ Chat-Completions 翻译）本来就不依赖 DB —— 这次让命中 binding 缺失的安装方式也能开箱可用。
+
+---
+
+## v0.4.5 — 2026-05-22
 
 - **[new]** **桌面端（Windows 系统托盘 / macOS 顶栏菜单）**：可选的桌面壳子，后台跑 mimo2codex，不再依赖终端窗口常开。首次启动有设置窗让你填 provider + API Key；托盘菜单一键打开 admin UI、查看 sidecar 日志、重启；可选「开机自启」复选框。命令行版安装（`npm install -g mimo2codex`）完全不变，桌面端走单独的 `v*-desktop` GitHub release 分发。下载与安装指南：<https://mimodoc.chengj.online/download>。
 - **[opt]** **桌面端 Mac 包改成 `.zip`（原来是 `.dmg`）**：GitHub Actions runner 上的 hdiutil（不论 macos-14 / macos-15）+ dmg 格式（UDZO / ULFO）多次试下来，生成的 `.dmg` SHA 校验过得了，但到真机上 Finder 挂不上（「此电脑不能读取你连接的磁盘」 / 「错误代码 3840」）。`.zip` 简单粗暴、哪里都能用——Finder 双击解压出 `mimo2codex.app`，拖到 `/Applications` 即可。下载页会自动识别格式，以后真要做签名 `.dmg` 再把那个 target 加回来。SHA256 校验、首次启动 `xattr -cr` 清 quarantine 这些都不变。
