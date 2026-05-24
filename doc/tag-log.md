@@ -17,6 +17,12 @@ Release history of mimo2codex, newest first.
 
 ---
 
+## (v0.4.10 — 2026-05-24)
+
+- **[fix]** **Codex Desktop namespace tools reporting `unsupported call` ([PR #34](https://github.com/7as0nch/mimo2codex/pull/34), [issue #33](https://github.com/7as0nch/mimo2codex/issues/33), thanks @meesii)**: Codex Desktop's namespace-wrapped tools (e.g. `spawn_agent` under `multi_agent_v1`) failed with `unsupported call` when routed through mimo2codex — the client uses the `namespace` field on each `function_call` output item to dispatch to the correct local handler, and the proxy was dropping it during translation. The fix builds a `toolName → namespaceName` map from the request's `tools` array and re-attaches `namespace` on both non-streaming (`respToResponses`) and streaming (`streamToSse`) outputs. Requests without namespace tools (MiMo / DeepSeek / plain Codex CLI) stay byte-identical.
+
+---
+
 ## (v0.4.8 — 2026-05-23)
 
 - **[new]** **Desktop preview (beta) — Windows tray / macOS menu-bar app**: optional Electron companion that runs mimo2codex in the background — no terminal window required. First launch shows a small settings window to pick a provider + paste an API key; after that the tray / menu-bar icon opens the embedded admin UI (either in a window or in your default browser). The sidecar lifecycle (start / stop / restart on settings change) is fully managed; menu **Quit** stops it cleanly. Includes an opt-in "Start on system boot" toggle. The CLI install (`npm install -g mimo2codex`) is unchanged and can coexist on the same machine — the desktop build ships as a separate `v*-desktop` artifact. This is a **beta** — installer, launch, sidecar, and auto-update flows still need real-world miles, so please report friction. Downloads + install guide: <https://mimodoc.chengj.online/download>.

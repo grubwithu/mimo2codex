@@ -49,27 +49,38 @@ export interface ReleaseNote {
 // lives in doc/tag-log.{md,zh.md} for users who want the full history.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "0.4.8",
-    date: "2026-05-23",
+    version: "0.4.10",
+    date: "2026-05-24",
     title: {
-      en: "Desktop preview (beta) — Windows / macOS downloads",
-      zh: "桌面预览（beta）—— Windows / macOS 包下载",
+      en: "Codex Desktop namespace tools now work end-to-end",
+      zh: "Codex Desktop 的 namespace / 子代理工具现在可正常调用",
     },
     summary: {
-      en: "First beta of the mimo2codex desktop app. Runs in the background as a tray / menu-bar process; no terminal required. We'd love your install + first-run feedback.",
-      zh: "mimo2codex 桌面端首个 beta。以系统托盘 / 顶栏进程后台运行，不依赖终端窗口。欢迎试用并反馈安装 + 首次启动的体验。",
+      en: "Fix for Codex Desktop's namespace-wrapped tool calls (e.g. multi_agent_v1 → spawn_agent) failing with \"unsupported call\". Other request flows are byte-identical. The Windows / macOS desktop preview (beta) is also still rolling out — grab it from the download page if you haven't.",
+      zh: "修复 Codex Desktop 调用 namespace 包装的工具（如 multi_agent_v1 下的 spawn_agent）报 \"unsupported call\" 的问题，其他请求流字节级不变。另：Windows / macOS 桌面预览（beta）还在持续推送，没装的同学可以去下载页拿一下。",
     },
     highlights: [
+      {
+        kind: "fixed",
+        title: {
+          en: "Namespace tools no longer report \"unsupported call\" (PR #34, issue #33, thanks @meesii)",
+          zh: "namespace / 子代理工具不再报 \"unsupported call\"（PR #34，issue #33，感谢 @meesii）",
+        },
+        description: {
+          en: "Codex Desktop dispatches namespace-wrapped tools (e.g. spawn_agent under multi_agent_v1) using a `namespace` field on the function_call output item. The proxy was dropping that field during translation. Now we extract toolName→namespace from the request's tools array and re-attach it on both non-streaming and streaming responses. Requests without namespace tools are byte-identical to before.",
+          zh: "Codex Desktop 通过 function_call output item 上的 `namespace` 字段把 namespace 包装的工具（如 multi_agent_v1 下的 spawn_agent）路由到本地 handler，代理之前丢了这个字段。现在会从请求的 tools 抽出 toolName→namespace 映射，在非流式和流式响应上按需附加。不带 namespace 工具的请求行为与之前完全一致。",
+        },
+      },
       {
         kind: "new",
         icon: <DesktopOutlined />,
         title: {
-          en: "Windows tray / macOS menu-bar app (beta)",
-          zh: "Windows 系统托盘 / macOS 顶栏桌面端（beta）",
+          en: "Reminder: Windows tray / macOS menu-bar desktop app (beta)",
+          zh: "提醒：Windows 系统托盘 / macOS 顶栏桌面端（beta）",
         },
         description: {
-          en: "Optional companion app that runs mimo2codex in the background — no terminal window kept open. First launch shows a small settings window to pick a provider + paste an API key; after that the tray / menu-bar icon opens the admin UI in a window or your default browser. Quit from the menu stops the sidecar cleanly. The CLI install (`npm install -g mimo2codex`) is unchanged and can coexist on the same machine. This is a beta — please report any installer / launch / sidecar issues on the download page or via a GitHub issue.",
-          zh: "可选的桌面壳子，后台跑 mimo2codex，不用一直开着终端窗口。首次启动会有个小设置窗让你选 provider 并粘贴 API Key；之后从系统托盘 / 顶栏图标一键打开 admin UI（窗内或默认浏览器）。菜单 Quit 干净退出 sidecar。命令行版（`npm install -g mimo2codex`）完全不变，两者可在同一台机器共存。这是 beta —— 安装 / 启动 / sidecar 相关问题欢迎在下载页或 GitHub issue 反馈。",
+          en: "If you haven't tried it yet — the optional companion app runs mimo2codex in the background, no terminal window required. First launch shows a small settings window to pick a provider + paste an API key; after that the tray / menu-bar icon opens the admin UI. The CLI install (`npm install -g mimo2codex`) is unchanged and can coexist. Still in beta — installer / launch / sidecar feedback welcome on the download page or via a GitHub issue.",
+          zh: "还没试过的话可以装一下 —— 可选的桌面壳子在后台跑 mimo2codex，不用一直挂终端。首次启动有个小设置窗让你选 provider 并粘贴 API Key；之后从系统托盘 / 顶栏图标一键打开 admin UI。命令行版（`npm install -g mimo2codex`）完全不变，两者可在同一台机器共存。仍在 beta —— 安装 / 启动 / sidecar 问题欢迎在下载页或 GitHub issue 反馈。",
         },
         location: {
           en: "Windows system tray / macOS menu bar — appears after install",
@@ -77,39 +88,6 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         },
         ctaLabel: { en: "Download & feedback", zh: "下载体验 & 反馈" },
         ctaHref: "https://mimodoc.chengj.online/download",
-      },
-      {
-        kind: "fixed",
-        title: {
-          en: "DeepSeek 400 \"Invalid assistant message\" with Chrome plugin (issue #29)",
-          zh: "Chrome 插件触发 DeepSeek 400 \"Invalid assistant message\" 已修复（issue #29）",
-        },
-        description: {
-          en: "Assistant turns translated from a reasoning + function_call sequence (Codex Chrome plugin pattern) no longer emit `content: null` — DeepSeek V4 rejected that shape. The field is now omitted per OpenAI spec when tool_calls is present; reasoning-only turns get `content: \"\"`.",
-          zh: "由 reasoning + function_call 拼成的 assistant 回合（Codex Chrome 插件场景）不再发 `content: null` —— DeepSeek V4 之前会按\"两个字段都没\"拒绝。tool_calls 存在时按 OpenAI 规范省略 content；reasoning-only 回合补 `content: \"\"`。",
-        },
-      },
-      {
-        kind: "fixed",
-        title: {
-          en: "Windows + pnpm-global + Node 22 startup no longer crashes (issue #30)",
-          zh: "Windows + pnpm 全局安装 + Node 22 启动不再崩溃（issue #30）",
-        },
-        description: {
-          en: "When better-sqlite3's native binding can't load (typical: pnpm global on Windows with no prebuilt for Node 22's ABI), mimo2codex now logs a clear warning and starts with the admin DB disabled instead of exiting. Core proxy translation never needed the DB.",
-          zh: "better-sqlite3 native binding 加载失败时（典型：Windows pnpm 全局安装且 Node 22 没拿到对应 ABI 的 prebuilt），mimo2codex 现在打印清晰告警并以 admin 关闭模式继续启动，不再退出。代理核心翻译本来就不依赖 DB。",
-        },
-      },
-      {
-        kind: "fixed",
-        title: {
-          en: "CodeX Desktop string-input misidentified as probe (PR #31, thanks @85339098-afk)",
-          zh: "CodeX Desktop 的 string input 被误判为 probe（PR #31，感谢 @85339098-afk）",
-        },
-        description: {
-          en: "OpenAI's Responses API allows `input` to be a string or an array; the probe detector only matched the array form, so `{model, input: \"hello\"}` (CodeX Desktop's natural shape) was short-circuited to an empty `output: []` with no upstream call — looked like \"model said nothing\" with no error signal. Non-empty string `input` is now correctly recognized as a real request.",
-          zh: "OpenAI Responses API 允许 `input` 是 string 或数组；之前 probe 检测只认数组形式，导致 `{model, input: \"hello\"}`（CodeX Desktop 的自然形状）被短路成 `output: []` 空响应、完全不调上游 —— 看起来像\"模型啥也没说\"且没有错误信号。现在 string `input` 非空也会正确走完整翻译流程。",
-        },
       },
     ],
   },

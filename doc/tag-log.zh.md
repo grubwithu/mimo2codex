@@ -17,6 +17,12 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 ---
 
+## (v0.4.10 — 2026-05-24)
+
+- **[fix]** **Codex Desktop namespace 工具报 `unsupported call`（[PR #34](https://github.com/7as0nch/mimo2codex/pull/34)，[issue #33](https://github.com/7as0nch/mimo2codex/issues/33)，感谢 @meesii）**：Codex Desktop 调用 namespace 包装的工具（如 `multi_agent_v1` 下的 `spawn_agent`）走 mimo2codex 代理时报 `unsupported call` —— 客户端依赖每个 `function_call` output item 上的 `namespace` 字段来路由到对应的本地 handler，而代理之前在翻译响应时把这个字段丢了。修复：从请求的 `tools` 数组抽出 `toolName → namespaceName` 映射，在非流式（`respToResponses`）和流式（`streamToSse`）两条响应路径上按需附加 `namespace` 字段。不带 namespace 工具的请求（MiMo / DeepSeek / 普通 Codex CLI 等）行为字节级保持一致。
+
+---
+
 ## (v0.4.8 — 2026-05-23)
 
 - **[new]** **桌面预览（beta）—— Windows 系统托盘 / macOS 顶栏桌面端**：可选的 Electron 壳子，后台跑 mimo2codex，不用一直挂着终端窗口。首次启动会有个小设置窗让你选 provider 并粘贴 API Key；之后从系统托盘 / 顶栏图标一键打开内嵌的 admin UI（窗内或默认浏览器都行）。sidecar 生命周期（启动 / 停止 / 改设置时重启）完全托管，菜单 **Quit** 干净退出。提供可选的"开机自启"开关。命令行版（`npm install -g mimo2codex`）完全不变，两者可在同一台机器共存 —— 桌面版作为独立的 `v*-desktop` 制品发布。这是 **beta** —— 安装、启动、sidecar、自更新链路还需要真实环境的里程验证，遇到任何卡点请反馈。下载和安装指引：<https://mimodoc.chengj.online/download>。
