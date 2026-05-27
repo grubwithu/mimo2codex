@@ -280,6 +280,17 @@ export interface ReqToChatOpts {
   // 副作用明显（多花 token、所有简单请求也走思考）—— admin UI / CLI 显式打开才生效。
   // disableThinking=true 时此开关无效（关思考路径接管）。
   forceHighEffort?: boolean;
+  // The model id that's *actually* going to upstream (after admin runtime
+  // override / alias / provider defaultModel fallback). When provided, this
+  // is what capability checks (vision, etc.) consult — NOT `req.model`, which
+  // is the client's literal that may not match the upstream model.
+  //
+  // Example: Codex sends `mimo-v2.5-pro` (no vision), but the admin has it
+  // aliased to upstream `mimo-v2.5` (vision). The image must NOT be stripped
+  // — the upstream can handle it.
+  //
+  // Omit / leave undefined → fall back to `req.model` (backward-compatible).
+  upstreamModel?: string;
 }
 
 // Returns one or more ChatTools (a `namespace` wrapper can expand to many),
@@ -850,9 +861,13 @@ function ensureToolCallsHaveOutputs(messages: ChatMessage[]): void {
 
 export function reqToChat(req: ResponsesRequest, opts: ReqToChatOpts = {}): ChatRequest {
   const messages: ChatMessage[] = [];
+  // Capability checks (vision, etc.) follow the upstream model — what actually
+  // receives the request — not the client literal. Falls back to req.model so
+  // existing callers keep their current behavior.
+  const effectiveModel = opts.upstreamModel ?? req.model;
   const ctx = {
-    model: req.model,
-    supportsImages: modelSupportsImages(req.model),
+    model: effectiveModel,
+    supportsImages: modelSupportsImages(effectiveModel),
     imageDropDir: opts.imageDropDir,
   };
 

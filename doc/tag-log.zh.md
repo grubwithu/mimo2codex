@@ -22,6 +22,7 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 - **[new]** **Windows / macOS 桌面端正式发布（不再 beta）**：经过 v0.4.8 起的 beta 验证，桌面端转 GA。后台跑 mimo2codex、系统托盘 / 顶栏图标管理、admin UI 一键打开、自更新链路全部就绪。命令行版（`npm install -g mimo2codex`）依然不变，两者可共存。下载入口：<https://mimodoc.chengj.online/download>。
 - **[fix]** **`tool_search` 工具支持（[issue #41](https://github.com/7as0nch/mimo2codex/issues/41)）**：Codex Desktop 的延迟工具发现工具之前被当未知类型丢，模型发现不了延迟加载的工具，还会刷一串 orphan 警告。现在翻成普通 function 工具，恢复正常。
 - **[fix]** **Connector 插件不再报 "unsupported call"（[issue #39](https://github.com/7as0nch/mimo2codex/issues/39)）**：GitHub / Canva / HeyGen / Dropbox / Gmail / Google Drive 这些 connector 依赖 OpenAI 后端的 MCP 运行时，第三方代理实现不了。现在 mimo2codex 把这个情况告诉上游模型，模型会主动建议用 shell + 命令行替代（比如 GitHub 用 `gh`）。
+- **[fix]** **运行时覆盖后的多模态判断走真实上游模型**：之前客户端发 `mimo-v2.5-pro`、admin 运行时把它映射到 `mimo-v2.5`（支持识图）时，mimo2codex 还是按客户端那个不支持识图的 id 判断、把图片提前剥掉了。修复后视觉 / 联网能力检查跟着**实际发往上游的模型 id** 走 —— 运行时改模型不用重启，识图、联网立刻按新模型的能力生效。
 
 ---
 

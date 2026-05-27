@@ -164,6 +164,7 @@ export const mimo: Provider = {
       imageDropDir: ctx.dataDir,
       disableThinking: ctx.disableThinking,
       forceHighEffort: ctx.forceHighEffort,
+      upstreamModel: ctx.upstreamModel,
     });
     return normalizeMimoBody(chat, req.model);
   },

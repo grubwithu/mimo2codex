@@ -102,6 +102,17 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       {
         kind: "fixed",
         title: {
+          en: "Vision / capability check follows runtime model override",
+          zh: "运行时改模型立即生效（识图 / 能力判断）",
+        },
+        description: {
+          en: "If admin runtime override / alias maps client `mimo-v2.5-pro` to upstream `mimo-v2.5` (which supports vision), images were being stripped at the proxy because the check used the client literal. Now the vision / capability check follows the real upstream model — change the routed model and image input works immediately, no restart needed.",
+          zh: "之前如果在 admin 把客户端的 `mimo-v2.5-pro` 运行时映射到 `mimo-v2.5`（支持识图），代理这边还是按客户端那个不支持识图的 id 提前剥掉了图片。修复后识图 / 能力判断跟着真实上游模型 id 走 —— 运行时改模型立即生效，不用重启。",
+        },
+      },
+      {
+        kind: "fixed",
+        title: {
           en: "Namespace tools fixed (PR #34, issue #33)",
           zh: "Namespace 工具修复（PR #34，issue #33）",
         },

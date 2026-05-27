@@ -1214,6 +1214,88 @@ describe("reqToChat", () => {
     expect(existsSync(pathMatch![1])).toBe(true);
   });
 
+  // Bug: when admin runtime override / model alias maps the client's model
+  // id to a DIFFERENT upstream model, the vision-capability check must follow
+  // the upstream model, not the client literal. Otherwise sending images to a
+  // proxy that rewrites `mimo-v2.5-pro` → `mimo-v2.5` (which DOES support
+  // vision) still strips the images at the proxy layer, because reqToChat
+  // only looked at req.model.
+  describe("vision capability follows upstreamModel, not client model (v0.5.4 hotfix)", () => {
+    const png1x1 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+    function visionReq(clientModel: string): ResponsesRequest {
+      return {
+        model: clientModel,
+        input: [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              { type: "input_text", text: "describe this" },
+              { type: "input_image", image_url: `data:image/png;base64,${png1x1}` },
+            ],
+          },
+        ],
+      };
+    }
+
+    it("client `mimo-v2.5-pro` + upstreamModel `mimo-v2.5` → image PASSES through (upstream supports vision)", () => {
+      const chat = reqToChat(visionReq("mimo-v2.5-pro"), { upstreamModel: "mimo-v2.5" });
+      const msg = chat.messages[0];
+      expect(msg.role).toBe("user");
+      // Image survives — content is an array with an image_url part.
+      expect(Array.isArray(msg.content)).toBe(true);
+      const parts = msg.content as Array<{ type: string }>;
+      const hasImage = parts.some((p) => p.type === "image_url");
+      expect(hasImage).toBe(true);
+    });
+
+    it("client `mimo-v2.5` + upstreamModel `mimo-v2.5-pro` → image STRIPPED (upstream does not support vision)", () => {
+      const dropDir = mkdtempSync(join(tmpdir(), "mimo2codex-test-"));
+      const warnSpy = vi.spyOn(log, "warn").mockImplementation(() => {});
+      try {
+        const chat = reqToChat(visionReq("mimo-v2.5"), {
+          upstreamModel: "mimo-v2.5-pro",
+          imageDropDir: dropDir,
+        });
+        const content =
+          typeof chat.messages[0].content === "string" ? chat.messages[0].content : "";
+        expect(content).toContain("1 image attachment omitted");
+        // Log WARN should name the UPSTREAM model (the one actually rejecting
+        // the image), not the client literal. Otherwise users debug the wrong id.
+        const warnText = warnSpy.mock.calls.map((c) => String(c[0])).join("\n");
+        expect(warnText).toContain("mimo-v2.5-pro");
+        expect(warnText).not.toMatch(/model "mimo-v2\.5"/); // not the client literal
+      } finally {
+        warnSpy.mockRestore();
+        rmSync(dropDir, { recursive: true, force: true });
+      }
+    });
+
+    it("no upstreamModel passed → falls back to req.model (backward compat)", () => {
+      const dropDir = mkdtempSync(join(tmpdir(), "mimo2codex-test-"));
+      try {
+        // No upstreamModel → use req.model (mimo-v2.5-pro), which does NOT
+        // support vision → image gets stripped, same as before this fix.
+        const chat = reqToChat(visionReq("mimo-v2.5-pro"), { imageDropDir: dropDir });
+        const content =
+          typeof chat.messages[0].content === "string" ? chat.messages[0].content : "";
+        expect(content).toContain("1 image attachment omitted");
+      } finally {
+        rmSync(dropDir, { recursive: true, force: true });
+      }
+    });
+
+    it("upstreamModel = `mimo-v2-omni` overrides non-vision client model → image PASSES", () => {
+      const chat = reqToChat(visionReq("deepseek-v4-pro"), { upstreamModel: "mimo-v2-omni" });
+      const msg = chat.messages[0];
+      expect(Array.isArray(msg.content)).toBe(true);
+      const parts = msg.content as Array<{ type: string }>;
+      expect(parts.some((p) => p.type === "image_url")).toBe(true);
+    });
+  });
+
   // Regression: under --no-reasoning, respToResponses writes the reasoning
   // text into `encrypted_content` with an empty `summary`. The next-turn
   // request from Codex echoes that reasoning item back; reqToChat must

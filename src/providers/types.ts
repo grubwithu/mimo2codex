@@ -50,6 +50,13 @@ export interface PreprocessCtx {
   // 上游真高强度思考。默认 false，仅在 admin UI 显式打开时生效。disableThinking=true 时
   // 此开关被忽略（关思考路径接管）。
   forceHighEffort?: boolean;
+  // The model id that's actually going to the upstream — after admin runtime
+  // override / alias / provider defaultModel fallback. Capability checks
+  // (vision, …) in reqToChat should follow THIS, not req.model (the client
+  // literal). Without it, e.g. client `mimo-v2.5-pro` aliased to upstream
+  // `mimo-v2.5` would still get images stripped because reqToChat would
+  // judge by the non-vision client id.
+  upstreamModel?: string;
 }
 
 export interface Provider {

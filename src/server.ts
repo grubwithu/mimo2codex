@@ -476,6 +476,7 @@ async function handleResponses(
     dataDir: cfg.dataDir,
     disableThinking: resolveDisableThinking(cfg),
     forceHighEffort: resolveForceHighEffort(cfg),
+    upstreamModel,
   });
   chat.model = upstreamModel;
   chat.stream = !!payload.stream;
@@ -1082,6 +1083,7 @@ async function handleChatPassthrough(
     exposeReasoning: cfg.exposeReasoning,
     disableThinking: resolveDisableThinking(cfg),
     forceHighEffort: resolveForceHighEffort(cfg),
+    upstreamModel,
   });
   body.model = upstreamModel;
 
