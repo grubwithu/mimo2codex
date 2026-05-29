@@ -48,10 +48,12 @@ export interface Config {
   // When true the session cookie is marked Secure (HTTPS-only). Defaults
   // to false; deployers behind nginx/caddy set MIMO2CODEX_COOKIE_SECURE=1.
   cookieSecure: boolean;
-  // When true, suppress the "client_model_rewritten" info log.
-  // Useful when Codex always sends a model id that differs from the
-  // provider's catalog (e.g. "gpt-5.4" → "mimo-v2.5-pro").
-  silentRewrite: boolean;
+  // Suppress the "model fallback applied" info log when Codex sends a model id
+  // that differs from the provider's catalog (e.g. "gpt-5.4" → "mimo-v2.5-pro").
+  //   true/false → env MIMO2CODEX_SILENT_REWRITE explicitly set, forces it
+  //   undefined  → runtime reads settings DB (admin UI toggle), default silent
+  // server.ts resolveSilentRewrite() implements env > settings > true.
+  silentRewriteFromCli?: boolean;
 }
 
 const DEFAULTS = {
@@ -294,7 +296,12 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
     disableThinkingFromCli,
     authMode,
     cookieSecure: env.MIMO2CODEX_COOKIE_SECURE === "1" || env.MIMO2CODEX_COOKIE_SECURE === "true",
-    silentRewrite: env.MIMO2CODEX_SILENT_REWRITE === "1" || env.MIMO2CODEX_SILENT_REWRITE === "true",
+    silentRewriteFromCli:
+      env.MIMO2CODEX_SILENT_REWRITE === "1" || env.MIMO2CODEX_SILENT_REWRITE === "true"
+        ? true
+        : env.MIMO2CODEX_SILENT_REWRITE === "0" || env.MIMO2CODEX_SILENT_REWRITE === "false"
+          ? false
+          : undefined,
   };
 }
 

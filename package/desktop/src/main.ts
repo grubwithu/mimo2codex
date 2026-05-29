@@ -42,6 +42,71 @@ async function waitForSidecarHttp(port: number, timeoutMs = 30_000): Promise<boo
   return false;
 }
 
+// Minimal JSON call to the local sidecar admin API (local mode → no auth).
+function sidecarApiJson<T>(port: number, method: "GET" | "POST", path: string): Promise<T | null> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { host: "127.0.0.1", port, path, method, timeout: 30_000, headers: { "content-type": "application/json" } },
+      (res) => {
+        let body = "";
+        res.on("data", (c) => (body += c));
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(body) as T);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(null);
+    });
+    req.end(method === "POST" ? "{}" : undefined);
+  });
+}
+
+// On desktop launch, if Codex Desktop isn't already running, offer to open it.
+async function maybePromptOpenCodex(port: number): Promise<void> {
+  try {
+    const status = await sidecarApiJson<{ supported?: boolean; running?: boolean }>(
+      port,
+      "GET",
+      "/admin/api/codex-status"
+    );
+    if (!status || status.supported === false) return; // unsupported platform → skip
+    if (status.running) {
+      log.info("codex already running — no prompt");
+      return;
+    }
+    const r = await dialog.showMessageBox({
+      type: "question",
+      title: "打开 Codex？",
+      message: "未检测到 Codex 正在运行",
+      detail: "mimo2codex 已就绪。是否现在打开 Codex 桌面端？",
+      buttons: ["打开 Codex", "暂不"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (r.response !== 0) return;
+    const launched = await sidecarApiJson<{ launched?: boolean }>(port, "POST", "/admin/api/codex-launch");
+    log.info("codex launch requested from startup prompt", { launched: launched?.launched });
+    if (!launched || launched.launched === false) {
+      void dialog.showMessageBox({
+        type: "warning",
+        title: "打开 Codex",
+        message: "未能自动打开 Codex",
+        detail: "请手动启动 Codex 桌面端。",
+        buttons: ["关闭"],
+      });
+    }
+  } catch (err) {
+    log.warn("codex open prompt failed", { error: (err as Error).message });
+  }
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function main(): Promise<void> {
@@ -378,6 +443,13 @@ async function main(): Promise<void> {
   } else if (!isAutostartLaunched) {
     log.info("normal launch → opening admin UI");
     openAdminWhenReady();
+    // Once the sidecar is reachable, offer to open Codex if it isn't running.
+    void (async () => {
+      const st = sidecar.status();
+      if (st.kind !== "running") return;
+      const ready = await waitForSidecarHttp(st.port);
+      if (ready) await maybePromptOpenCodex(st.port);
+    })();
   } else {
     log.info("autostart launch → staying tray-only");
   }

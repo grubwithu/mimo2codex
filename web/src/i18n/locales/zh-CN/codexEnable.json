@@ -1,9 +1,19 @@
 {
   "title": "Codex 接入",
   "intro": "在这里一键切换 Codex 实际调用的模型，替代 ccswitch。提供两种机制：",
+  "restart": {
+    "restart": "立即重启 Codex",
+    "restartLater": "暂不",
+    "restartConfirmTitle": "重启 Codex 让配置生效？",
+    "restartConfirmBody": "配置已写入 ~/.codex——需要重启 Codex 才能生效。现在重启吗？这会强制关闭 Codex 桌面端并重新启动，正在进行的对话会被中断。",
+    "restarted": "Codex 已重启（结束 {{killed}} 个进程），正在重新启动。",
+    "launched": "Codex 原本未运行——已为你启动。",
+    "restartNoop": "未找到可重启的 Codex 桌面端，请手动启动。",
+    "restartUnsupported": "当前平台不支持一键重启，请手动重启 Codex。"
+  },
   "prereq": {
-    "title": "先决条件 / 手动配置片段",
-    "subtitle": "auth.json / config.toml / 环境变量 / cc-switch — 点击展开查看"
+    "title": "工作原理 + 先决条件 / 手动配置片段",
+    "subtitle": "两种机制 / auth.json / config.toml / 环境变量 / cc-switch — 点击展开查看"
   },
   "tabs": {
     "targets": "可启用模型",

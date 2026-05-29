@@ -15,7 +15,6 @@ import { ThunderboltOutlined } from "@ant-design/icons";
 import {
   api,
   type CodexBackupPair,
-  type CodexDirInfo,
   type CodexState,
   type CodexTarget,
   type CodexTargetsResponse,
@@ -23,7 +22,7 @@ import {
 import { SetupSnippets } from "../../components/SetupSnippets";
 import { PageTour } from "../../components/PageTour";
 import type { Busy, ProbeState } from "./types";
-import { CurrentStateCard } from "./CurrentStateCard";
+import { promptRestartCodex } from "./restartCodex";
 import { ProviderBlock } from "./ProviderBlock";
 import { RuntimeOverrideCard } from "./RuntimeOverrideCard";
 import { BackupCard } from "./BackupCard";
@@ -37,7 +36,6 @@ export function CodexEnable() {
   const { authMode } = useAuth();
   const isServerMode = authMode === "on";
   const [modal, modalCtx] = Modal.useModal();
-  const stateCardRef = useRef<HTMLDivElement>(null);
   const prereqRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const testAllRef = useRef<HTMLButtonElement>(null);
@@ -49,7 +47,6 @@ export function CodexEnable() {
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [probes, setProbes] = useState<Record<string, ProbeState>>({});
-  const [codexDirInfo, setCodexDirInfo] = useState<CodexDirInfo | null>(null);
   const [testingAll, setTestingAll] = useState<boolean>(false);
   // thinking.disabled setting：admin UI 控制的全局"关思考"开关。null = 加载中。
   // CLI flag (--disable-thinking / env) 优先于该设置 —— 当 cliOverridden 为 true 时
@@ -96,15 +93,13 @@ export function CodexEnable() {
   async function load() {
     try {
       setError(null);
-      const [s, ts, dirInfo, think] = await Promise.all([
+      const [s, ts, think] = await Promise.all([
         api.codexState(),
         api.codexTargets(),
-        api.codexDir(),
         api.thinkingState().catch(() => null), // 老后端没此端点时降级
       ]);
       setState(s);
       setTargetsResp(ts);
-      setCodexDirInfo(dirInfo);
       if (think) {
         setThinkingDisabled(think.effective);
         setThinkingCliOverridden(think.cliOverride !== null);
@@ -170,6 +165,10 @@ export function CodexEnable() {
         })
       );
       await load();
+      // Config only takes effect on Codex reload — offer to do it right now.
+      promptRestartCodex(modal, t, (m) =>
+        m.type === "success" ? setSuccess(m.text) : setError(m.text)
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -328,26 +327,6 @@ export function CodexEnable() {
       <Typography.Title level={2} style={{ marginTop: 0 }}>
         {t("title")}
       </Typography.Title>
-      <Typography.Paragraph type="secondary">{t("intro")}</Typography.Paragraph>
-
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        description={
-          <Space direction="vertical" size={6}>
-            <Trans i18nKey="modesInfo.applyFile" ns="codexEnable">
-              <strong>placeholder</strong>placeholder
-              <strong>placeholder</strong>placeholder
-            </Trans>
-            <Trans i18nKey="modesInfo.runtimeOverride" ns="codexEnable">
-              <strong>placeholder</strong>placeholder
-              <strong>placeholder</strong>placeholder
-            </Trans>
-          </Space>
-        }
-        message={null}
-      />
 
       {error && (
         <Alert
@@ -370,16 +349,6 @@ export function CodexEnable() {
         />
       )}
 
-      {state && (
-        <div ref={stateCardRef}>
-          <CurrentStateCard
-            state={state}
-            dirInfo={codexDirInfo}
-            onReload={() => void load()}
-          />
-        </div>
-      )}
-
       <div ref={prereqRef}>
         <Collapse
           style={{ marginBottom: 16 }}
@@ -394,7 +363,31 @@ export function CodexEnable() {
                   </Typography.Text>
                 </span>
               ),
-              children: <SetupSnippets />,
+              children: (
+                <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                    {t("intro")}
+                  </Typography.Paragraph>
+                  <Alert
+                    type="info"
+                    showIcon
+                    description={
+                      <Space direction="vertical" size={6}>
+                        <Trans i18nKey="modesInfo.applyFile" ns="codexEnable">
+                          <strong>placeholder</strong>placeholder
+                          <strong>placeholder</strong>placeholder
+                        </Trans>
+                        <Trans i18nKey="modesInfo.runtimeOverride" ns="codexEnable">
+                          <strong>placeholder</strong>placeholder
+                          <strong>placeholder</strong>placeholder
+                        </Trans>
+                      </Space>
+                    }
+                    message={null}
+                  />
+                  <SetupSnippets />
+                </Space>
+              ),
             },
           ]}
         />
@@ -575,11 +568,6 @@ export function CodexEnable() {
       <PageTour
         pageKey="codex"
         steps={[
-          {
-            target: stateCardRef,
-            title: tTour("codex.s1.title"),
-            description: tTour("codex.s1.desc"),
-          },
           {
             target: prereqRef,
             title: tTour("codex.s2.title"),

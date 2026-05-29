@@ -9,12 +9,23 @@
 //   3. Prepend a new `ReleaseNote` to RELEASE_NOTES below. Most recent first.
 //      The modal auto-shows it to users whose lastSeenVersion is below it.
 //
-// Keep entries user-facing: highlight what changed from the user's seat, name
-// the menu / button / page where the new thing lives, and (optionally) wire a
-// CTA that navigates straight to it.
+// Keep entries user-facing and SHORT — one line per change. The full prose
+// lives in doc/tag-log.{md,zh.md}; here we mirror every tag-log change briefly
+// so the modal stays scannable. We keep ONLY the latest version's entry.
 
 import type { ReactNode } from "react";
-import { ApiOutlined, DesktopOutlined, BugOutlined } from "@ant-design/icons";
+import {
+  ApiOutlined,
+  AppstoreOutlined,
+  BugOutlined,
+  CodeOutlined,
+  DashboardOutlined,
+  DesktopOutlined,
+  HistoryOutlined,
+  ReloadOutlined,
+  SettingOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 
 export interface BilingualText {
   en: string;
@@ -44,146 +55,122 @@ export interface ReleaseNote {
 }
 
 // ── Entries ──────────────────────────────────────────────────────────────
-// Most recent first. Per the v0.4.3 release: we keep ONLY the latest version
-// here so the in-app "What's new" modal stays tight — older release detail
-// lives in doc/tag-log.{md,zh.md} for users who want the full history.
+// Most recent first. We keep ONLY the latest version here so the in-app
+// "What's new" modal stays tight — older release detail lives in
+// doc/tag-log.{md,zh.md} for users who want the full history.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "0.5.6",
-    date: "2026-05-28",
+    version: "0.5.20",
+    date: "2026-05-29",
     title: {
-      en: "Long-conversation 400 hotfix + desktop polish (PR #43)",
-      zh: "长对话 400 修复 + 桌面端打磨（PR #43）",
+      en: "Session Manager, header status, safer config switching",
+      zh: "会话管理、顶栏状态、更稳的切配置",
     },
     summary: {
-      en: "Fixes the long-running 400 \"unexpected end of data\" that silently broke chat sessions, plus a round of desktop UX improvements contributed by @starlsd93-sudo.",
-      zh: "修了长对话「unexpected end of data」400 错误，并打磨了一轮桌面端体验（感谢 @starlsd93-sudo 反馈）。",
+      en: "A roll-up release: a new Session Manager, live status in the header, config switching that preserves your settings, 429 retry, and desktop quality-of-life.",
+      zh: "一个汇总版本：新增会话管理、顶栏实时状态、切配置不丢设置、429 重试、以及一批桌面端体验优化。",
     },
     highlights: [
       {
         kind: "fixed",
-        icon: <BugOutlined />,
-        title: {
-          en: "Truncated tool_call.arguments no longer poison the session",
-          zh: "截断的 tool_call.arguments 不再污染会话",
-        },
+        icon: <ApiOutlined />,
+        title: { en: "429 no longer breaks the session", zh: "429 不再中断会话" },
         description: {
-          en: "If an upstream stream cut mid tool-call (length / network / cancel), the truncated `arguments` JSON used to stick to the session forever and 400 every later request. mimo2codex now salvages malformed args to `\"{}\"` at three layers. Poisoned sessions revive on the next request; new sessions are immune.",
-          zh: "上游流中途断了 tool call（长度 / 网络 / 取消）时，截断的 `arguments` JSON 之前会粘在会话里持续 400。本版本在三个位置自动改写为 `\"{}\"`，被污染的会话下次请求自动恢复，新会话直接免疫。",
+          en: "Transient upstream 429 / 5xx are retried with backoff (honoring Retry-After) instead of bubbling up to Codex.",
+          zh: "上游瞬时 429 / 5xx 改为退避重试（遵循 Retry-After），不再透传给 Codex 触发「exceeded retry limit」。",
         },
-        location: { en: "Automatic", zh: "自动生效" },
+      },
+      {
+        kind: "fixed",
+        icon: <BugOutlined />,
+        title: { en: "“Write files and enable” keeps your config.toml", zh: "「写入文件并启用」不丢 config.toml 设置" },
+        description: {
+          en: "Switching models now surgically merges only the model/provider keys — [projects], [mcp_servers], reasoning, comments all stay.",
+          zh: "切换模型只合并模型/provider 字段，[projects]、[mcp_servers]、reasoning、注释等原样保留。",
+        },
+      },
+      {
+        kind: "new",
+        icon: <HistoryOutlined />,
+        title: { en: "Session Manager", zh: "会话管理" },
+        description: {
+          en: "Browse every Codex session across providers (provider → project → session); migrate one, or batch-migrate selected, to another provider.",
+          zh: "跨 provider 浏览所有 Codex 会话（provider → 项目 → 会话）；可单个迁移或勾选批量迁移到另一个 provider。",
+        },
+        location: { en: "Left nav → Session Manager", zh: "左侧导航 → 会话管理" },
+        ctaLabel: { en: "Open", zh: "打开" },
+        ctaPath: "/sessions",
+      },
+      {
+        kind: "new",
+        icon: <CodeOutlined />,
+        title: { en: "Session preview + Markdown export", zh: "会话预览 + 导出 Markdown" },
+        description: {
+          en: "Preview a session's chat (tool calls collapsed to keep text front-and-center) and export it to Markdown.",
+          zh: "预览会话聊天记录（工具调用默认折叠以突出文本），并可导出为 Markdown。",
+        },
+      },
+      {
+        kind: "new",
+        icon: <DashboardOutlined />,
+        title: { en: "Live “当前状态” in the header", zh: "顶栏「当前状态」实时显示" },
+        description: {
+          en: "Effective provider·model now rides in the top bar as a rotating chip; click for the full state.",
+          zh: "当前生效的 provider·model 以跑马灯芯片常驻顶栏，点击查看完整状态。",
+        },
+      },
+      {
+        kind: "improved",
+        icon: <AppstoreOutlined />,
+        title: { en: "Codex page slimmed", zh: "Codex 接入页精简" },
+        description: {
+          en: "Down to just the model-switch table; the current-state card moved to the header and the quick-switch bar was dropped.",
+          zh: "精简为只剩切模型表格；当前状态卡片挪到顶栏，快速切换栏移除。",
+        },
+      },
+      {
+        kind: "new",
+        icon: <ReloadOutlined />,
+        title: { en: "Restart Codex after applying", zh: "应用配置后重启 Codex" },
+        description: {
+          en: "After “写入文件并启用”, mimo2codex offers to restart Codex Desktop so the change takes effect.",
+          zh: "「写入文件并启用」后弹窗询问是否帮你重启 Codex 桌面端使配置生效。",
+        },
+      },
+      {
+        kind: "new",
+        icon: <DesktopOutlined />,
+        title: { en: "Desktop: open Codex on launch", zh: "桌面端：启动时打开 Codex" },
+        description: {
+          en: "If Codex isn't running when you start the desktop app, it asks whether to launch it.",
+          zh: "启动桌面端时若 Codex 未运行，会询问是否帮你打开。",
+        },
       },
       {
         kind: "improved",
         icon: <DesktopOutlined />,
-        title: {
-          en: "Desktop Settings: multi-provider + CLI import (PR #43)",
-          zh: "桌面端设置：多 provider 同框 + 一键导入 CLI 配置（PR #43）",
-        },
+        title: { en: "Desktop: double-click tray → console", zh: "桌面端：双击托盘开控制台" },
         description: {
-          en: "MiMo / DeepSeek / Generic provider keys + base URLs configurable on one page. First-run detects an existing `~/.mimo2codex/.env` (follows the data-dir pointer for migrated installs) and offers a one-click import.",
-          zh: "MiMo / DeepSeek / Generic 三家的 API Key + Base URL 同框配置。首次启动会检测旧的 `~/.mimo2codex/.env`（迁过 dataDir 的用户按指针文件定位）并弹一键导入。",
-        },
-        location: { en: "Tray → Settings…", zh: "托盘 → Settings…" },
-      },
-      {
-        kind: "new",
-        icon: <DesktopOutlined />,
-        title: {
-          en: "Chinese app menu + top-bar Settings entry (PR #43)",
-          zh: "桌面端中文菜单 + 左上角设置入口（PR #43）",
-        },
-        description: {
-          en: "Unified Chinese menu on Win / Mac / Linux (文件 / 编辑 / 视图 / 窗口 / 帮助). 「文件 → 设置… (Ctrl+, / Cmd+,)」opens Settings directly — no more hunting in the tray.",
-          zh: "三平台统一中文菜单。「文件 → 设置… (Ctrl+, / Cmd+,)」直接弹设置窗，不用再绕系统托盘。",
-        },
-        location: { en: "App menu bar", zh: "顶部应用菜单" },
-      },
-      {
-        kind: "new",
-        icon: <DesktopOutlined />,
-        title: {
-          en: "Refreshed app icon (PR #43)",
-          zh: "应用图标升级（PR #43）",
-        },
-        description: {
-          en: "Higher-resolution orange branding contributed by @starlsd93-sudo — wired up on Windows, macOS, and docweb.",
-          zh: "更高分辨率的橙色图标（@starlsd93-sudo 投稿），Windows / macOS / docweb 三处都换上了。",
-        },
-      },
-    ],
-  },
-  {
-    version: "0.5.4",
-    date: "2026-05-27",
-    title: {
-      en: "Windows / macOS desktop app GA + Codex Desktop fixes",
-      zh: "Windows / macOS 桌面端正式发布 + Codex Desktop 修复",
-    },
-    summary: {
-      en: "Desktop app graduates from beta to GA. Plus three Codex Desktop tool-handling fixes.",
-      zh: "桌面端从 beta 转正式发布。另外三个 Codex Desktop 工具修复。",
-    },
-    highlights: [
-      {
-        kind: "new",
-        icon: <DesktopOutlined />,
-        title: {
-          en: "Windows tray / macOS menu-bar desktop app — now GA",
-          zh: "Windows 系统托盘 / macOS 顶栏桌面端 —— 正式发布",
-        },
-        description: {
-          en: "Beta tested since v0.4.8 — now stable. Runs mimo2codex in the background, tray / menu-bar icon manages the sidecar, one click opens the admin UI, auto-update wired up. The CLI install (`npm install -g mimo2codex`) is unchanged and can coexist.",
-          zh: "v0.4.8 起的 beta 验证完成，现在转正式发布。后台跑 mimo2codex，系统托盘 / 顶栏图标管理 sidecar，一键打开 admin UI，自更新就绪。命令行版（`npm install -g mimo2codex`）依然不变，两者可共存。",
-        },
-        ctaLabel: { en: "Download", zh: "下载" },
-        ctaHref: "https://mimodoc.chengj.online/download",
-      },
-      {
-        kind: "fixed",
-        icon: <ApiOutlined />,
-        title: {
-          en: "Connector plugins no longer fail (issue #39)",
-          zh: "Connector 插件不再失败（issue #39）",
-        },
-        description: {
-          en: "GitHub / Canva / HeyGen / Dropbox / Gmail / Google Drive connectors require OpenAI's backend MCP runtime, which a third-party proxy can't substitute for. The upstream model now suggests `shell` + a CLI alternative (e.g. `gh` for GitHub) instead of failing with \"unsupported call\".",
-          zh: "GitHub / Canva / HeyGen / Dropbox / Gmail / Google Drive 等 connector 依赖 OpenAI 后端的 MCP 运行时，第三方代理替代不了。上游模型现在会建议用 `shell` + 命令行替代（比如 GitHub 用 `gh`），不再报 \"unsupported call\"。",
-        },
-        ctaLabel: { en: "Details", zh: "详情" },
-        ctaHref: "https://github.com/7as0nch/mimo2codex/blob/main/doc/connector-plugins.md",
-      },
-      {
-        kind: "fixed",
-        title: {
-          en: "`tool_search` builtin supported (issue #41)",
-          zh: "`tool_search` 工具支持（issue #41）",
-        },
-        description: {
-          en: "Codex Desktop's deferred-tool-discovery tool was previously dropped as an unknown type. It's now translated to a function tool — works normally.",
-          zh: "Codex Desktop 的延迟工具发现工具之前被当未知类型丢弃。现在翻成 function 工具，恢复正常。",
+          en: "Double-clicking the tray icon opens the admin console directly.",
+          zh: "双击系统托盘图标直接打开管理控制台。",
         },
       },
       {
-        kind: "fixed",
-        title: {
-          en: "Vision / capability check follows runtime model override",
-          zh: "运行时改模型立即生效（识图 / 能力判断）",
-        },
+        kind: "improved",
+        icon: <SettingOutlined />,
+        title: { en: "Backups tidied away", zh: "备份归入独立目录" },
         description: {
-          en: "If admin runtime override / alias maps client `mimo-v2.5-pro` to upstream `mimo-v2.5` (which supports vision), images were being stripped at the proxy because the check used the client literal. Now the vision / capability check follows the real upstream model — change the routed model and image input works immediately, no restart needed.",
-          zh: "之前如果在 admin 把客户端的 `mimo-v2.5-pro` 运行时映射到 `mimo-v2.5`（支持识图），代理这边还是按客户端那个不支持识图的 id 提前剥掉了图片。修复后识图 / 能力判断跟着真实上游模型 id 走 —— 运行时改模型立即生效，不用重启。",
+          en: "Per-switch backups moved into a hidden ~/.codex/.m2c-backups/ folder so they stop cluttering the codex dir.",
+          zh: "每次切换的备份迁入隐藏的 ~/.codex/.m2c-backups/ 目录，不再污染 codex 目录。",
         },
       },
       {
-        kind: "fixed",
-        title: {
-          en: "Namespace tools fixed (PR #34, issue #33)",
-          zh: "Namespace 工具修复（PR #34，issue #33）",
-        },
+        kind: "improved",
+        icon: <ThunderboltOutlined />,
+        title: { en: "Model-rewrite log silent by default", zh: "模型改写日志默认静默" },
         description: {
-          en: "Codex Desktop's namespace-wrapped tools (e.g. spawn_agent under multi_agent_v1) no longer fail with \"unsupported call\".",
-          zh: "Codex Desktop 的 namespace 包装工具（如 multi_agent_v1 下的 spawn_agent）不再报 \"unsupported call\"。",
+          en: "The “model fallback applied” log is suppressed by default; toggle it under the header “更多” menu.",
+          zh: "「model fallback applied」日志默认静默；可在顶栏「更多」菜单里开关。",
         },
       },
     ],

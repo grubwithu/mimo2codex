@@ -7,6 +7,13 @@
     "mappings": "活跃模型映射",
     "dataDir": "本地数据目录"
   },
+  "silentRewrite": {
+    "label": "静默模型改写日志",
+    "on": "已静默",
+    "off": "显示",
+    "saved": "模型改写日志：{{state}}",
+    "cliOverride": "由环境变量 MIMO2CODEX_SILENT_REWRITE 控制"
+  },
   "ui": {
     "title": "UI 偏好",
     "theme": "主题",

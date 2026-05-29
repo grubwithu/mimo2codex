@@ -324,6 +324,59 @@ export interface CodexApplyResponse {
   bundleUrl?: string | null;
 }
 
+export interface CodexSession {
+  id: string;
+  provider: string;
+  cwd: string;
+  title: string;
+  firstUserMessage: string;
+  createdAt: number;
+  updatedAt: number;
+  archived: boolean;
+  rolloutPath: string;
+  tokensUsed: number;
+}
+
+export interface CodexSessionsResponse {
+  localOnly: boolean;
+  dbPath: string | null;
+  available: boolean;
+  sessions: CodexSession[];
+  providers: string[];
+}
+
+export interface TranscriptItem {
+  kind: "message" | "reasoning" | "tool";
+  // message
+  role?: "user" | "assistant";
+  text?: string;
+  context?: boolean;
+  // tool
+  name?: string;
+  command?: string | null;
+  input?: string | null;
+  output?: string;
+  status?: string | null;
+}
+
+export interface SessionTranscript {
+  localOnly: boolean;
+  available: boolean;
+  title?: string;
+  cwd: string | null;
+  model: string | null;
+  items: TranscriptItem[];
+}
+
+export interface CodexMigrateResponse {
+  ok: boolean;
+  restartRequired: boolean;
+  id: string;
+  fromProvider: string;
+  toProvider: string;
+  backupDir: string;
+}
+
 export interface CodexHistoryRow {
   id: number;
   ts: number;
@@ -543,12 +596,33 @@ export const api = {
     request<{ ok: boolean }>("PUT", "/thinking-state", { disabled }),
   setForceHighEffort: (forceHighEffort: boolean) =>
     request<{ ok: boolean }>("PUT", "/thinking-state", { forceHighEffort }),
+  logSettings: () =>
+    request<{ silentRewrite: boolean; cliOverride: boolean | null }>("GET", "/log-settings"),
+  setSilentRewrite: (silentRewrite: boolean) =>
+    request<{ ok: boolean }>("PUT", "/log-settings", { silentRewrite }),
   codexState: () => request<CodexState>("GET", "/codex-state"),
   codexTargets: () => request<CodexTargetsResponse>("GET", "/codex-targets"),
   codexApply: (body: { providerId: string; modelId: string }) =>
     request<CodexApplyResponse>("POST", "/codex-apply", body),
   codexRestore: (ts: number) =>
     request<{ ok: boolean; restartRequired: boolean }>("POST", "/codex-restore", { ts }),
+  codexSessions: () => request<CodexSessionsResponse>("GET", "/codex-sessions"),
+  codexMigrateSession: (body: { id: string; toProvider: string }) =>
+    request<CodexMigrateResponse>("POST", "/codex-sessions/migrate", body),
+  codexSessionTranscript: (id: string) =>
+    request<SessionTranscript>(
+      "GET",
+      `/codex-sessions/transcript?id=${encodeURIComponent(id)}`
+    ),
+  codexRestart: () =>
+    request<{
+      ok: boolean;
+      supported: boolean;
+      platform: string;
+      wasRunning: boolean;
+      killed: number;
+      relaunched: boolean;
+    }>("POST", "/codex-restart"),
   deleteCodexBackup: (ts: number, force = false) =>
     request<{ ok: boolean; removed: number }>(
       "DELETE",

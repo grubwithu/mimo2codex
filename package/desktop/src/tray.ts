@@ -23,6 +23,12 @@ export function createTray(actions: TrayActions): Tray {
   if (tray) return tray;
   tray = new Tray(trayIcon());
   rebuildMenu(actions, { kind: "starting" });
+  // Double-clicking the tray icon opens the admin console in-app directly —
+  // the most common thing users want, and quicker than right-click → menu.
+  // Fires on Windows and macOS; menu access stays on right-click / single-click.
+  tray.on("double-click", () => {
+    lastActions?.openAdminInApp();
+  });
   return tray;
 }
 

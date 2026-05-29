@@ -44,6 +44,13 @@ import type { GenericProviderSpec } from "../providers/generic.js";
 import { PROVIDER_PRESETS } from "../providers/presets.js";
 import { isAbsolute as pathIsAbsolute } from "node:path";
 import { applyCodex, deleteBackupPair, readCodexState, restoreCodex } from "../codex/state.js";
+import {
+  CodexBusyError,
+  listCodexSessions,
+  migrateSessionProvider,
+} from "../codex/sessions.js";
+import { isCodexRunning, launchCodex, restartCodex } from "../codex/restart.js";
+import { parseTranscript, resolveRolloutPath } from "../codex/transcript.js";
 import { resolveDataDirInfo } from "../db/dataDir.js";
 import { pointerFilePath } from "../db/dataDirPointer.js";
 import {
@@ -990,6 +997,35 @@ async function handleApi(ctx: RouteContext): Promise<void> {
     return sendError(res, 405, "method_not_allowed", "use GET or PUT");
   }
 
+  // GET/PUT /admin/api/log-settings — quick toggle for the "model fallback
+  // applied" rewrite log. Default is silent (suppressed). env
+  // MIMO2CODEX_SILENT_REWRITE, when set, overrides and disables the toggle.
+  if (pathname === "/admin/api/log-settings") {
+    if (req.method === "GET") {
+      const cliOverride = cfg.silentRewriteFromCli ?? null;
+      const setting = (() => {
+        try {
+          const s = getSetting("logging.silentRewrite");
+          return s === null ? true : s !== "0";
+        } catch {
+          return true;
+        }
+      })();
+      const effective = cliOverride !== null ? cliOverride : setting;
+      return sendJson(res, 200, { silentRewrite: effective, cliOverride });
+    }
+    if (req.method === "PUT") {
+      const body = await readJsonBody<{ silentRewrite?: unknown }>(req);
+      if (typeof body.silentRewrite !== "boolean") {
+        return sendError(res, 400, "invalid_body", "silentRewrite must be a boolean");
+      }
+      setSetting("logging.silentRewrite", body.silentRewrite ? "1" : "0");
+      log.info(`logging.silentRewrite set to ${body.silentRewrite} via admin UI`);
+      return sendJson(res, 200, { ok: true });
+    }
+    return sendError(res, 405, "method_not_allowed", "use GET or PUT");
+  }
+
   // GET /admin/api/provider-presets
   // Returns the known-vendor preset metadata (matchBaseUrl / matchModelPrefix /
   // recommendedSpec) so the admin UI can auto-fill features when the user types
@@ -1647,6 +1683,144 @@ async function handleApi(ctx: RouteContext): Promise<void> {
           : "restore_failed";
       const status = code === "not_found" ? 404 : 400;
       return sendError(res, status, code, msg);
+    }
+  }
+
+  // GET /admin/api/codex-sessions — list Codex Desktop sessions (read-only),
+  // grouped client-side by provider → project (cwd) → session. Reads Codex's
+  // own state_<N>.sqlite. Local mode only: a server-mode container has no
+  // access to the operator's ~/.codex.
+  if (req.method === "GET" && pathname === "/admin/api/codex-sessions") {
+    if (cfg.authMode === "on") {
+      return sendJson(res, 200, {
+        localOnly: true,
+        dbPath: null,
+        available: false,
+        sessions: [],
+        providers: [],
+      });
+    }
+    try {
+      const result = listCodexSessions();
+      return sendJson(res, 200, { localOnly: false, ...result });
+    } catch (err) {
+      return sendError(res, 500, "sessions_read_failed", (err as Error).message);
+    }
+  }
+
+  // GET /admin/api/codex-sessions/transcript?id=<id> — parse a session's
+  // rollout JSONL into a readable transcript (messages / tool calls / patches)
+  // for the preview drawer. Read-only, local mode only.
+  if (req.method === "GET" && pathname === "/admin/api/codex-sessions/transcript") {
+    if (cfg.authMode === "on") {
+      return sendJson(res, 200, { localOnly: true, available: false, cwd: null, model: null, items: [] });
+    }
+    const id = query.get("id");
+    if (!id) return sendError(res, 400, "invalid_body", "id query param is required");
+    try {
+      const session = listCodexSessions().sessions.find((s) => s.id === id);
+      const rolloutPath = resolveRolloutPath(id, session?.rolloutPath ?? null);
+      const transcript = parseTranscript(rolloutPath);
+      return sendJson(res, 200, { localOnly: false, title: session?.title ?? "", ...transcript });
+    } catch (err) {
+      return sendError(res, 500, "transcript_failed", (err as Error).message);
+    }
+  }
+
+  // POST /admin/api/codex-sessions/migrate — move a session to another
+  // provider by rewriting its model_provider (DB + rollout). Backs up first
+  // and refuses while Codex Desktop holds the DB lock. Local mode only.
+  if (req.method === "POST" && pathname === "/admin/api/codex-sessions/migrate") {
+    if (cfg.authMode === "on") {
+      return sendError(res, 400, "local_only", "session migration is only available in local mode");
+    }
+    let body: { id?: unknown; toProvider?: unknown };
+    try {
+      body = await readJsonBody<{ id?: unknown; toProvider?: unknown }>(req);
+    } catch (err) {
+      return sendError(res, 400, "invalid_json", (err as Error).message);
+    }
+    if (typeof body.id !== "string" || !body.id.trim()) {
+      return sendError(res, 400, "invalid_body", "id must be a non-empty string");
+    }
+    if (typeof body.toProvider !== "string" || !body.toProvider.trim()) {
+      return sendError(res, 400, "invalid_body", "toProvider must be a non-empty string");
+    }
+    try {
+      const result = migrateSessionProvider(body.id, body.toProvider);
+      log.info(
+        `codex session migrated: id=${result.id} ${result.fromProvider} → ${result.toProvider}`
+      );
+      return sendJson(res, 200, { ok: true, restartRequired: true, ...result });
+    } catch (err) {
+      if (err instanceof CodexBusyError) {
+        return sendError(
+          res,
+          409,
+          "codex_running",
+          "Codex Desktop appears to be running — fully quit it before migrating a session"
+        );
+      }
+      const msg = (err as Error).message;
+      const status = msg.includes("not found") ? 404 : 400;
+      return sendError(res, status, "migrate_failed", msg);
+    }
+  }
+
+  // GET /admin/api/codex-status — is the Codex Desktop app running? Used by the
+  // desktop shell to offer to launch it on startup. Local mode only.
+  if (req.method === "GET" && pathname === "/admin/api/codex-status") {
+    if (cfg.authMode === "on") {
+      return sendJson(res, 200, { localOnly: true, supported: false, running: false });
+    }
+    try {
+      const status = await isCodexRunning();
+      return sendJson(res, 200, { localOnly: false, ...status });
+    } catch (err) {
+      return sendError(res, 500, "status_failed", (err as Error).message);
+    }
+  }
+
+  // POST /admin/api/codex-launch — launch Codex Desktop (no kill). Local only.
+  if (req.method === "POST" && pathname === "/admin/api/codex-launch") {
+    if (cfg.authMode === "on") {
+      return sendError(res, 400, "local_only", "launching Codex is only available in local mode");
+    }
+    try {
+      const result = await launchCodex();
+      if (!result.supported) {
+        return sendError(res, 400, "unsupported_platform", `launching Codex isn't supported on ${process.platform}`);
+      }
+      log.info(`codex launch requested: launched=${result.launched}`);
+      return sendJson(res, 200, { ok: true, ...result });
+    } catch (err) {
+      return sendError(res, 500, "launch_failed", (err as Error).message);
+    }
+  }
+
+  // POST /admin/api/codex-restart — kill + relaunch the Codex Desktop app so
+  // a freshly-applied config takes effect without a manual restart. Launches
+  // Codex if it wasn't running. Local mode only.
+  if (req.method === "POST" && pathname === "/admin/api/codex-restart") {
+    if (cfg.authMode === "on") {
+      return sendError(res, 400, "local_only", "restarting Codex is only available in local mode");
+    }
+    try {
+      const result = await restartCodex();
+      if (!result.supported) {
+        return sendError(
+          res,
+          400,
+          "unsupported_platform",
+          `restarting Codex isn't supported on ${result.platform} — please restart it manually`
+        );
+      }
+      log.info(
+        `codex restart: wasRunning=${result.wasRunning} killed=${result.killed} relaunched=${result.relaunched}`
+      );
+      return sendJson(res, 200, { ok: true, ...result });
+    } catch (err) {
+      return sendError(res, 500, "restart_failed", (err as Error).message);
     }
   }
 

@@ -1,9 +1,19 @@
 {
   "title": "Codex Integration",
   "intro": "One-click switch the model Codex actually calls — a replacement for ccswitch. Two mechanisms are offered:",
+  "restart": {
+    "restart": "Restart Codex now",
+    "restartLater": "Not now",
+    "restartConfirmTitle": "Restart Codex to apply the change?",
+    "restartConfirmBody": "The config has been written to ~/.codex — Codex must restart to pick it up. Restart now? This force-closes Codex Desktop and relaunches it, so any in-progress turn will be interrupted.",
+    "restarted": "Codex restarted ({{killed}} processes) — it's relaunching now.",
+    "launched": "Codex wasn't running — launched it now.",
+    "restartNoop": "Couldn't find Codex Desktop to restart. Launch it manually.",
+    "restartUnsupported": "One-click restart isn't supported on this platform — restart Codex manually."
+  },
   "prereq": {
-    "title": "Prerequisites / manual config snippets",
-    "subtitle": "auth.json / config.toml / env vars / cc-switch — click to expand"
+    "title": "How it works + prerequisites / manual config snippets",
+    "subtitle": "two modes / auth.json / config.toml / env vars / cc-switch — click to expand"
   },
   "tabs": {
     "targets": "Targets",
