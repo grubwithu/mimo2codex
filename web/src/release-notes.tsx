@@ -173,6 +173,16 @@ export const RELEASE_NOTES: ReleaseNote[] = [
           zh: "「model fallback applied」日志默认静默；可在顶栏「更多」菜单里开关。",
         },
       },
+      {
+        kind: "new",
+        icon: <SettingOutlined />,
+        title: { en: "Log storage settings", zh: "日志存储设置" },
+        description: {
+          en: "Choose whether to capture all bodies, failures only, or none — and optionally auto-prune old chat logs by day count.",
+          zh: "可选择捕获全部请求体、仅失败请求或完全关闭，并可按天数自动清理旧聊天日志。",
+        },
+        location: { en: "Logs page → Storage settings", zh: "日志页 → 存储设置" },
+      },
     ],
   },
 ];

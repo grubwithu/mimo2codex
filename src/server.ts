@@ -21,6 +21,7 @@ import type { UserRow } from "./db/users.js";
 import { insertLog, type ChatLogEntry } from "./db/logs.js";
 import { getActiveOverride, type ActiveOverride } from "./db/overrides.js";
 import { getSetting } from "./db/settings.js";
+import { applyLogBodyMode, resolveLogBodyMode, runLogMaintenance } from "./logging/settings.js";
 import { redactSensitive } from "./util/redact.js";
 import { isMaintenance, getMaintenanceMessage } from "./util/maintenance.js";
 
@@ -150,7 +151,16 @@ function recordLog(cfg: Config, entry: Omit<ChatLogEntry, "ts">): void {
   const ts = Date.now();
   setImmediate(() => {
     try {
-      insertLog({ ...entry, ts });
+      const bodies = applyLogBodyMode(resolveLogBodyMode(cfg), entry.status_code, {
+        requestBody: entry.request_body,
+        responseBody: entry.response_body,
+      });
+      insertLog({
+        ...entry,
+        ts,
+        request_body: bodies.requestBody,
+        response_body: bodies.responseBody,
+      });
     } catch (err) {
       log.warn("chat_logs insert failed", { error: (err as Error).message });
     }
@@ -168,7 +178,17 @@ function userLogger(user: UserRow | null): typeof recordLog {
     const ts = Date.now();
     setImmediate(() => {
       try {
-        insertLog({ ...entry, ts, user_id: userId });
+        const bodies = applyLogBodyMode(resolveLogBodyMode(cfg), entry.status_code, {
+          requestBody: entry.request_body,
+          responseBody: entry.response_body,
+        });
+        insertLog({
+          ...entry,
+          ts,
+          user_id: userId,
+          request_body: bodies.requestBody,
+          response_body: bodies.responseBody,
+        });
       } catch (err) {
         log.warn("chat_logs insert failed", { error: (err as Error).message });
       }
@@ -1392,6 +1412,20 @@ export function startServer(cfg: Config): Server {
     }
     sendJson(res, 404, errorEnvelope(404, "not_found", `no route for ${req.method} ${url}`));
   });
+
+  if (cfg.adminEnabled) {
+    const maintain = () => {
+      const result = runLogMaintenance(cfg);
+      if (result.removed > 0) {
+        log.info(
+          `log maintenance removed ${result.removed} rows older than ${result.retentionDays} day(s)`
+        );
+      }
+    };
+    maintain();
+    const tid = setInterval(maintain, 6 * 60 * 60 * 1000);
+    server.on("close", () => clearInterval(tid));
+  }
 
   server.listen(cfg.port, cfg.host);
   return server;

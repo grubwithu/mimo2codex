@@ -19,6 +19,8 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 ## v0.5.20 (upcoming)
 
+- **[new]** **面向长期运行部署的日志存储控制**：聊天日志不再只能无限期保存完整请求/响应体。新增 `MIMO2CODEX_LOG_BODY_MODE=full|errors-only|off`（也在日志页提供「存储设置」入口），运维可选择保留全部调试细节、只保留失败请求体、或完全关闭 body 捕获。新增 `MIMO2CODEX_LOG_RETENTION_DAYS=<n>`（日志页同样可设置），服务在启动时和运行期间会定期自动删除 `n` 天前的旧日志；设为 `0` 表示关闭定期清理。这个功能主要面向 Docker / 团队部署，避免 Codex 级别的大请求体把 `data.db` 很快撑大。
+
 - **[fix]** **上游 429 / 5xx 瞬时错误不再中断会话（「exceeded retry limit, last status: 429」）**：以前代理会把限流直接透传回 Codex，Codex 用完自己的 `request_max_retries` 就放弃，用户只能手动点「继续」。现在 mimo2codex 自己兜底：`postUpstream` 对 `429` 和 `500/502/503/504`（以及网络连接失败）做指数退避 + 抖动重试，并遵循上游的 `Retry-After` 头（上限 10 秒，避免 Codex 等到超时）。重试可被中断——退避期间 Codex 取消会立即停止。非可重试错误（400/401/403 等）仍快速失败。可通过 `MIMO2CODEX_UPSTREAM_MAX_RETRIES`（默认 3）和 `MIMO2CODEX_UPSTREAM_RETRY_BASE_MS`（默认 500）调整。
 
 - **[fix]** **「写入文件并启用」不再抹掉你 config.toml 里的其它设置**：以前应用一个模型会用 `model` + `model_provider` + `[model_providers.<key>]` 整体覆盖 `~/.codex/config.toml`，悄悄丢掉用户其余配置——`[projects]` 信任级别、`[mcp_servers]`、`[windows] sandbox`、`model_reasoning_effort`、`[notice.model_migrations]`、注释统统消失。现在切换模型走**外科式合并**（`src/codex/tomlMerge.ts`）：只重写我们管理的四个键（`model`、`model_provider`、`model_context_window`、`model_max_output_tokens`）和我们自己的 `[model_providers.<key>]` 表块，其它字节原样保留。全新安装（没有 config.toml）仍然写入带备选模型注释的首次引导片段。每次写入前依旧先备份，历史配置完全可追溯复原。

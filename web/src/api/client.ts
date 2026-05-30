@@ -193,6 +193,18 @@ export interface LogDetail extends LogRow {
   response_body: string | null;
 }
 
+export type LogBodyMode = "full" | "errors-only" | "off";
+
+export interface LogSettingsResponse {
+  silentRewrite: boolean;
+  cliOverride: boolean | null;
+  bodyMode: LogBodyMode;
+  bodyModeCliOverride: LogBodyMode | null;
+  retentionDays: number | null;
+  retentionDaysCliOverride: number | null;
+  retentionDaysCliOverrideActive: boolean;
+}
+
 export interface MappingRow {
   provider_id: string;
   client_model: string;
@@ -596,10 +608,11 @@ export const api = {
     request<{ ok: boolean }>("PUT", "/thinking-state", { disabled }),
   setForceHighEffort: (forceHighEffort: boolean) =>
     request<{ ok: boolean }>("PUT", "/thinking-state", { forceHighEffort }),
-  logSettings: () =>
-    request<{ silentRewrite: boolean; cliOverride: boolean | null }>("GET", "/log-settings"),
+  logSettings: () => request<LogSettingsResponse>("GET", "/log-settings"),
   setSilentRewrite: (silentRewrite: boolean) =>
     request<{ ok: boolean }>("PUT", "/log-settings", { silentRewrite }),
+  setLogSettings: (body: { bodyMode?: LogBodyMode; retentionDays?: number | null }) =>
+    request<{ ok: boolean }>("PUT", "/log-settings", body),
   codexState: () => request<CodexState>("GET", "/codex-state"),
   codexTargets: () => request<CodexTargetsResponse>("GET", "/codex-targets"),
   codexApply: (body: { providerId: string; modelId: string }) =>

@@ -2,6 +2,7 @@ import { byShortcut, isProviderId, PROVIDER_LIST, PROVIDERS } from "./providers/
 import type { Provider, ProviderId, ProviderRuntime } from "./providers/types.js";
 import { resolveDataDir } from "./db/dataDir.js";
 import type { ContextOverflowMode } from "./upstream/openaiCompatClient.js";
+import { parseLogBodyMode, parseLogRetentionDays, type LogBodyMode } from "./logging/settings.js";
 
 // Documentation URLs surfaced in "missing API key" errors. Built-ins are
 // hardcoded here so error messages stay user-friendly; generic providers
@@ -54,6 +55,8 @@ export interface Config {
   //   undefined  → runtime reads settings DB (admin UI toggle), default silent
   // server.ts resolveSilentRewrite() implements env > settings > true.
   silentRewriteFromCli?: boolean;
+  logBodyModeFromCli?: LogBodyMode;
+  logRetentionDaysFromCli?: number | null;
 }
 
 const DEFAULTS = {
@@ -76,6 +79,8 @@ export interface ParsedArgs {
   noUpdateCheck?: boolean;
   disableThinking?: boolean;
   authMode?: "off" | "on";
+  logBodyMode?: LogBodyMode;
+  logRetentionDays?: number | null;
   positional: string[];
   showHelp: boolean;
   showVersion: boolean;
@@ -145,6 +150,20 @@ export function parseArgv(argv: string[]): ParsedArgs {
           throw new Error("--auth must be 'on' or 'off'");
         }
         out.authMode = v;
+        break;
+      }
+      case "--log-body-mode": {
+        const mode = parseLogBodyMode(next());
+        if (!mode) throw new Error("--log-body-mode must be one of: full, errors-only, off");
+        out.logBodyMode = mode;
+        break;
+      }
+      case "--log-retention-days": {
+        const parsed = parseLogRetentionDays(next());
+        if (parsed === undefined) {
+          throw new Error("--log-retention-days must be a positive integer or 0 to disable");
+        }
+        out.logRetentionDays = parsed;
         break;
       }
       case "--help":
@@ -265,6 +284,10 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
   const overflowEnv = env.MIMO2CODEX_CONTEXT_OVERFLOW_MODE?.toLowerCase();
   const contextOverflowMode: ContextOverflowMode =
     overflowEnv === "passthrough" ? "passthrough" : "friendly";
+  const logBodyModeFromCli =
+    parsed.logBodyMode ?? parseLogBodyMode(env.MIMO2CODEX_LOG_BODY_MODE) ?? undefined;
+  const logRetentionDaysFromCli =
+    parsed.logRetentionDays ?? parseLogRetentionDays(env.MIMO2CODEX_LOG_RETENTION_DAYS);
 
   // CLI flag 优先，否则看 env (MIMO2CODEX_DISABLE_THINKING=1)，否则留 undefined
   // 让 server 运行时读 settings DB（让 admin UI 改完立刻生效，无需重启）。
@@ -302,6 +325,8 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
         : env.MIMO2CODEX_SILENT_REWRITE === "0" || env.MIMO2CODEX_SILENT_REWRITE === "false"
           ? false
           : undefined,
+    logBodyModeFromCli,
+    logRetentionDaysFromCli,
   };
 }
 

@@ -82,6 +82,12 @@ import {
   setActiveOverride,
 } from "../db/overrides.js";
 import {
+  parseLogBodyMode,
+  parseLogRetentionDays,
+  resolveLogBodyMode,
+  resolveLogRetentionDays,
+} from "../logging/settings.js";
+import {
   callOpenAICompat,
   callResponsesPassthrough,
   UpstreamError,
@@ -1003,6 +1009,10 @@ async function handleApi(ctx: RouteContext): Promise<void> {
   if (pathname === "/admin/api/log-settings") {
     if (req.method === "GET") {
       const cliOverride = cfg.silentRewriteFromCli ?? null;
+      const bodyModeCliOverride = cfg.logBodyModeFromCli ?? null;
+      const retentionDaysCliOverride =
+        cfg.logRetentionDaysFromCli === undefined ? null : cfg.logRetentionDaysFromCli;
+      const retentionDaysCliOverrideActive = cfg.logRetentionDaysFromCli !== undefined;
       const setting = (() => {
         try {
           const s = getSetting("logging.silentRewrite");
@@ -1012,15 +1022,77 @@ async function handleApi(ctx: RouteContext): Promise<void> {
         }
       })();
       const effective = cliOverride !== null ? cliOverride : setting;
-      return sendJson(res, 200, { silentRewrite: effective, cliOverride });
+      return sendJson(res, 200, {
+        silentRewrite: effective,
+        cliOverride,
+        bodyMode: resolveLogBodyMode(cfg),
+        bodyModeCliOverride,
+        retentionDays: resolveLogRetentionDays(cfg),
+        retentionDaysCliOverride,
+        retentionDaysCliOverrideActive,
+      });
     }
     if (req.method === "PUT") {
-      const body = await readJsonBody<{ silentRewrite?: unknown }>(req);
-      if (typeof body.silentRewrite !== "boolean") {
-        return sendError(res, 400, "invalid_body", "silentRewrite must be a boolean");
+      const body = await readJsonBody<{
+        silentRewrite?: unknown;
+        bodyMode?: unknown;
+        retentionDays?: unknown;
+      }>(req);
+      const writes: Array<{ key: string; value: string; logMessage: string }> = [];
+      if (body.silentRewrite !== undefined) {
+        if (typeof body.silentRewrite !== "boolean") {
+          return sendError(res, 400, "invalid_body", "silentRewrite must be a boolean");
+        }
+        writes.push({
+          key: "logging.silentRewrite",
+          value: body.silentRewrite ? "1" : "0",
+          logMessage: `logging.silentRewrite set to ${body.silentRewrite} via admin UI`,
+        });
       }
-      setSetting("logging.silentRewrite", body.silentRewrite ? "1" : "0");
-      log.info(`logging.silentRewrite set to ${body.silentRewrite} via admin UI`);
+      if (body.bodyMode !== undefined) {
+        if (typeof body.bodyMode !== "string" || !parseLogBodyMode(body.bodyMode)) {
+          return sendError(res, 400, "invalid_body", "bodyMode must be full, errors-only, or off");
+        }
+        writes.push({
+          key: "logging.bodyMode",
+          value: body.bodyMode,
+          logMessage: `logging.bodyMode set to ${body.bodyMode} via admin UI`,
+        });
+      }
+      if (body.retentionDays !== undefined) {
+        if (body.retentionDays !== null && !Number.isInteger(body.retentionDays)) {
+          return sendError(res, 400, "invalid_body", "retentionDays must be null or an integer");
+        }
+        const parsed =
+          body.retentionDays === null
+            ? null
+            : parseLogRetentionDays(String(body.retentionDays));
+        if (parsed === undefined) {
+          return sendError(
+            res,
+            400,
+            "invalid_body",
+            "retentionDays must be null, 0, or a positive integer"
+          );
+        }
+        writes.push({
+          key: "logging.retentionDays",
+          value: parsed === null ? "0" : String(parsed),
+          logMessage: `logging.retentionDays set to ${parsed === null ? "disabled" : parsed} via admin UI`,
+        });
+      }
+      if (writes.length === 0) {
+        return sendError(
+          res,
+          400,
+          "invalid_body",
+          "body must include at least one of: silentRewrite, bodyMode, retentionDays"
+        );
+      }
+      for (const write of writes) {
+        setSetting(write.key, write.value);
+        log.info(write.logMessage);
+      }
       return sendJson(res, 200, { ok: true });
     }
     return sendError(res, 405, "method_not_allowed", "use GET or PUT");
