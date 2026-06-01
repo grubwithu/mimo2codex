@@ -17,9 +17,15 @@ Release history of mimo2codex, newest first.
 
 ---
 
-## v0.5.20 (upcoming)
+## v0.5.21 (upcoming)
 
-- **[new]** **Log storage controls for long-running deployments**: chat logs can now be tuned instead of always storing full request/response payloads forever. Added `MIMO2CODEX_LOG_BODY_MODE=full|errors-only|off` (also exposed in the Logs page as "Storage settings") so operators can keep full debugging detail, capture only failed requests, or disable body capture entirely. Added `MIMO2CODEX_LOG_RETENTION_DAYS=<n>` (or the same setting from the Logs page) to auto-delete rows older than `n` days on startup and periodically while the server keeps running; `0` disables scheduled pruning. This targets Docker / team installs where Codex-sized request bodies can grow `data.db` quickly.
+- **[fix]** **Sustained 429 rate limits no longer break the session (follow-up to v0.5.20's retry)**: v0.5.20 added proxy-side 429/5xx retry, but the default budget (3 retries, ~3.5s) only outlasted sub-second blips. Real per-minute quota limits (`429 Too many requests / limitation`, often *without* a `Retry-After` header) still exhausted it, so the raw 429 was forwarded to Codex, which then burned its own retries and surfaced "exceeded retry limit, last status: 429" again. The default retry budget is now larger: **6 retries with exponential backoff capped at 12s (~28s total)**, so a multi-second quota limit clears before we give up. Still abortable, still honors `Retry-After` when present, and still tunable via `MIMO2CODEX_UPSTREAM_MAX_RETRIES` (now up to 12) / `MIMO2CODEX_UPSTREAM_RETRY_BASE_MS`. Trade-off: while rate-limited, a single request now waits up to ~28s before failing instead of ~3.5s.
+
+- **[new]** **Log storage controls for long-running deployments**: **what problem this solves** — every request/response used to be logged in full and kept forever, so on always-on installs (Docker, shared/team setups) `data.db` grows without bound: it eats disk, slows backups and the Logs page, and keeps full conversation text around far longer than you may want for privacy. Two knobs now cap that. `MIMO2CODEX_LOG_BODY_MODE=full|errors-only|off` (also in the Logs page → "Storage settings") keeps full debugging detail, stores bodies for failed requests only (enough to triage, far smaller), or disables body capture entirely. `MIMO2CODEX_LOG_RETENTION_DAYS=<n>` (same place) auto-deletes rows older than `n` days — on startup and every 6h while running; `0` disables pruning. Typical use: a small VPS / team proxy sets `errors-only` + `30` so the DB stays bounded instead of ballooning over months. Settings live in the DB (no restart) and the env/CLI value wins when set.
+
+---
+
+## v0.5.20
 
 - **[fix]** **Transient upstream 429 / 5xx no longer break the session ("exceeded retry limit, last status: 429")**: the proxy used to forward a rate-limit straight back to Codex, which then burned its own `request_max_retries` and gave up — leaving the user to manually hit "continue". mimo2codex now absorbs transient failures itself: `postUpstream` retries `429` and `500/502/503/504` (and network connect failures) with exponential backoff + jitter, honoring the upstream's `Retry-After` header (capped at 10s so Codex doesn't time out). Retries are abortable — a Codex cancel during backoff stops immediately. Non-retryable errors (400/401/403 …) still fail fast. Tunable via `MIMO2CODEX_UPSTREAM_MAX_RETRIES` (default 3) and `MIMO2CODEX_UPSTREAM_RETRY_BASE_MS` (default 500).
 

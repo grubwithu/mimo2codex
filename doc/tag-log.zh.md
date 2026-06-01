@@ -17,9 +17,15 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 ---
 
-## v0.5.20 (upcoming)
+## v0.5.21 (upcoming)
 
-- **[new]** **面向长期运行部署的日志存储控制**：聊天日志不再只能无限期保存完整请求/响应体。新增 `MIMO2CODEX_LOG_BODY_MODE=full|errors-only|off`（也在日志页提供「存储设置」入口），运维可选择保留全部调试细节、只保留失败请求体、或完全关闭 body 捕获。新增 `MIMO2CODEX_LOG_RETENTION_DAYS=<n>`（日志页同样可设置），服务在启动时和运行期间会定期自动删除 `n` 天前的旧日志；设为 `0` 表示关闭定期清理。这个功能主要面向 Docker / 团队部署，避免 Codex 级别的大请求体把 `data.db` 很快撑大。
+- **[fix]** **持续型 429 限流不再中断会话（v0.5.20 重试的补强）**：v0.5.20 加了代理侧的 429/5xx 重试，但默认预算（重试 3 次、约 3.5 秒）只能扛住亚秒级抖动。真正按分钟计的配额限流（`429 Too many requests / limitation`，且经常**不带 `Retry-After` 头**）仍会把预算耗尽，于是原始 429 被透传给 Codex，Codex 再耗尽自己的重试，又报出「exceeded retry limit, last status: 429」。现在默认重试预算放大为：**重试 6 次、指数退避封顶 12 秒（总计约 28 秒）**，让几秒到几十秒的配额限流在放弃前自行解除。仍可被取消、仍尊重上游的 `Retry-After`、仍可通过 `MIMO2CODEX_UPSTREAM_MAX_RETRIES`（上限提到 12）/ `MIMO2CODEX_UPSTREAM_RETRY_BASE_MS` 调整。代价：限流期间单个请求最长会等约 28 秒才失败，而不是原来的约 3.5 秒。
+
+- **[new]** **面向长期运行部署的日志存储控制**：**解决什么问题** —— 以前每次请求/响应都会被完整记录并永久保存，所以在常驻部署（Docker、团队/多人共享）里 `data.db` 会无上限地膨胀：占磁盘、拖慢备份和日志页，还会把完整对话内容留存得比你出于隐私考虑想要的更久。现在有两个旋钮来封顶。`MIMO2CODEX_LOG_BODY_MODE=full|errors-only|off`（日志页 →「存储设置」也能设）可保留全部调试细节、只保留失败请求的 body（够排障、体积小很多）、或完全关闭 body 记录。`MIMO2CODEX_LOG_RETENTION_DAYS=<n>`（同一处）会自动删除超过 `n` 天的旧记录——启动时及运行期间每 6 小时各跑一次；设为 `0` 关闭清理。典型用法：小 VPS / 团队代理设 `errors-only` + `30`，数据库就稳定在可控大小，而不会几个月下来越滚越大。设置存在 DB 里（改完免重启），且 env/CLI 显式设置时优先。
+
+---
+
+## v0.5.20
 
 - **[fix]** **上游 429 / 5xx 瞬时错误不再中断会话（「exceeded retry limit, last status: 429」）**：以前代理会把限流直接透传回 Codex，Codex 用完自己的 `request_max_retries` 就放弃，用户只能手动点「继续」。现在 mimo2codex 自己兜底：`postUpstream` 对 `429` 和 `500/502/503/504`（以及网络连接失败）做指数退避 + 抖动重试，并遵循上游的 `Retry-After` 头（上限 10 秒，避免 Codex 等到超时）。重试可被中断——退避期间 Codex 取消会立即停止。非可重试错误（400/401/403 等）仍快速失败。可通过 `MIMO2CODEX_UPSTREAM_MAX_RETRIES`（默认 3）和 `MIMO2CODEX_UPSTREAM_RETRY_BASE_MS`（默认 500）调整。
 

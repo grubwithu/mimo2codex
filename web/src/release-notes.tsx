@@ -14,18 +14,7 @@
 // so the modal stays scannable. We keep ONLY the latest version's entry.
 
 import type { ReactNode } from "react";
-import {
-  ApiOutlined,
-  AppstoreOutlined,
-  BugOutlined,
-  CodeOutlined,
-  DashboardOutlined,
-  DesktopOutlined,
-  HistoryOutlined,
-  ReloadOutlined,
-  SettingOutlined,
-  ThunderboltOutlined,
-} from "@ant-design/icons";
+import { ApiOutlined, SettingOutlined } from "@ant-design/icons";
 
 export interface BilingualText {
   en: string;
@@ -60,117 +49,24 @@ export interface ReleaseNote {
 // doc/tag-log.{md,zh.md} for users who want the full history.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "0.5.20",
-    date: "2026-05-29",
+    version: "0.5.21",
+    date: "2026-06-01",
     title: {
-      en: "Session Manager, header status, safer config switching",
-      zh: "会话管理、顶栏状态、更稳的切配置",
+      en: "Stronger 429 handling + log storage controls",
+      zh: "更强的 429 处理 + 日志存储控制",
     },
     summary: {
-      en: "A roll-up release: a new Session Manager, live status in the header, config switching that preserves your settings, 429 retry, and desktop quality-of-life.",
-      zh: "一个汇总版本：新增会话管理、顶栏实时状态、切配置不丢设置、429 重试、以及一批桌面端体验优化。",
+      en: "Sustained rate limits no longer break the session, plus log storage controls that keep data.db from growing without bound on always-on installs.",
+      zh: "持续型限流不再中断会话；并新增日志存储控制，避免常驻部署里 data.db 无上限膨胀。",
     },
     highlights: [
       {
         kind: "fixed",
         icon: <ApiOutlined />,
-        title: { en: "429 no longer breaks the session", zh: "429 不再中断会话" },
+        title: { en: "Sustained 429s no longer break the session", zh: "持续 429 不再中断会话" },
         description: {
-          en: "Transient upstream 429 / 5xx are retried with backoff (honoring Retry-After) instead of bubbling up to Codex.",
-          zh: "上游瞬时 429 / 5xx 改为退避重试（遵循 Retry-After），不再透传给 Codex 触发「exceeded retry limit」。",
-        },
-      },
-      {
-        kind: "fixed",
-        icon: <BugOutlined />,
-        title: { en: "“Write files and enable” keeps your config.toml", zh: "「写入文件并启用」不丢 config.toml 设置" },
-        description: {
-          en: "Switching models now surgically merges only the model/provider keys — [projects], [mcp_servers], reasoning, comments all stay.",
-          zh: "切换模型只合并模型/provider 字段，[projects]、[mcp_servers]、reasoning、注释等原样保留。",
-        },
-      },
-      {
-        kind: "new",
-        icon: <HistoryOutlined />,
-        title: { en: "Session Manager", zh: "会话管理" },
-        description: {
-          en: "Browse every Codex session across providers (provider → project → session); migrate one, or batch-migrate selected, to another provider.",
-          zh: "跨 provider 浏览所有 Codex 会话（provider → 项目 → 会话）；可单个迁移或勾选批量迁移到另一个 provider。",
-        },
-        location: { en: "Left nav → Session Manager", zh: "左侧导航 → 会话管理" },
-        ctaLabel: { en: "Open", zh: "打开" },
-        ctaPath: "/sessions",
-      },
-      {
-        kind: "new",
-        icon: <CodeOutlined />,
-        title: { en: "Session preview + Markdown export", zh: "会话预览 + 导出 Markdown" },
-        description: {
-          en: "Preview a session's chat (tool calls collapsed to keep text front-and-center) and export it to Markdown.",
-          zh: "预览会话聊天记录（工具调用默认折叠以突出文本），并可导出为 Markdown。",
-        },
-      },
-      {
-        kind: "new",
-        icon: <DashboardOutlined />,
-        title: { en: "Live “当前状态” in the header", zh: "顶栏「当前状态」实时显示" },
-        description: {
-          en: "Effective provider·model now rides in the top bar as a rotating chip; click for the full state.",
-          zh: "当前生效的 provider·model 以跑马灯芯片常驻顶栏，点击查看完整状态。",
-        },
-      },
-      {
-        kind: "improved",
-        icon: <AppstoreOutlined />,
-        title: { en: "Codex page slimmed", zh: "Codex 接入页精简" },
-        description: {
-          en: "Down to just the model-switch table; the current-state card moved to the header and the quick-switch bar was dropped.",
-          zh: "精简为只剩切模型表格；当前状态卡片挪到顶栏，快速切换栏移除。",
-        },
-      },
-      {
-        kind: "new",
-        icon: <ReloadOutlined />,
-        title: { en: "Restart Codex after applying", zh: "应用配置后重启 Codex" },
-        description: {
-          en: "After “写入文件并启用”, mimo2codex offers to restart Codex Desktop so the change takes effect.",
-          zh: "「写入文件并启用」后弹窗询问是否帮你重启 Codex 桌面端使配置生效。",
-        },
-      },
-      {
-        kind: "new",
-        icon: <DesktopOutlined />,
-        title: { en: "Desktop: open Codex on launch", zh: "桌面端：启动时打开 Codex" },
-        description: {
-          en: "If Codex isn't running when you start the desktop app, it asks whether to launch it.",
-          zh: "启动桌面端时若 Codex 未运行，会询问是否帮你打开。",
-        },
-      },
-      {
-        kind: "improved",
-        icon: <DesktopOutlined />,
-        title: { en: "Desktop: double-click tray → console", zh: "桌面端：双击托盘开控制台" },
-        description: {
-          en: "Double-clicking the tray icon opens the admin console directly.",
-          zh: "双击系统托盘图标直接打开管理控制台。",
-        },
-      },
-      {
-        kind: "improved",
-        icon: <SettingOutlined />,
-        title: { en: "Backups tidied away", zh: "备份归入独立目录" },
-        description: {
-          en: "Per-switch backups moved into a hidden ~/.codex/.m2c-backups/ folder so they stop cluttering the codex dir.",
-          zh: "每次切换的备份迁入隐藏的 ~/.codex/.m2c-backups/ 目录，不再污染 codex 目录。",
-        },
-      },
-      {
-        kind: "improved",
-        icon: <ThunderboltOutlined />,
-        title: { en: "Model-rewrite log silent by default", zh: "模型改写日志默认静默" },
-        description: {
-          en: "The “model fallback applied” log is suppressed by default; toggle it under the header “更多” menu.",
-          zh: "「model fallback applied」日志默认静默；可在顶栏「更多」菜单里开关。",
+          en: "The proxy now retries a rate limit for ~28s (was ~3.5s), so multi-second quota limits clear before the 429 reaches Codex.",
+          zh: "代理现在最多重试约 28 秒（原约 3.5 秒）扛限流，让几十秒内的配额限流自行解除，不再把 429 透传给 Codex 触发「exceeded retry limit」。",
         },
       },
       {
@@ -178,8 +74,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         icon: <SettingOutlined />,
         title: { en: "Log storage settings", zh: "日志存储设置" },
         description: {
-          en: "Choose whether to capture all bodies, failures only, or none — and optionally auto-prune old chat logs by day count.",
-          zh: "可选择捕获全部请求体、仅失败请求或完全关闭，并可按天数自动清理旧聊天日志。",
+          en: "Chat logs store every request/response in full, so over time data.db balloons (disk, slower backups, privacy). Now store all bodies, failures only, or none — and auto-delete logs older than N days to keep the DB bounded.",
+          zh: "聊天日志会完整保存每次请求/响应，时间久了 data.db 会越来越大（占磁盘、备份变慢、隐私）。现在可选保存全部 body、仅失败请求或完全不存，并自动删除超过 N 天的旧日志，把数据库体积控制住。",
         },
         location: { en: "Logs page → Storage settings", zh: "日志页 → 存储设置" },
       },
