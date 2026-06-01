@@ -8,7 +8,7 @@ import {
   callResponsesPassthrough,
   UpstreamError,
 } from "./upstream/openaiCompatClient.js";
-import { BUILTIN_PROVIDERS, PROVIDER_LIST, PROVIDERS } from "./providers/registry.js";
+import { BUILTIN_PROVIDERS, findVisionFallback, PROVIDER_LIST, PROVIDERS } from "./providers/registry.js";
 import type { Provider, ProviderModel, ProviderRuntime } from "./providers/types.js";
 import { makeServerResponseSink } from "./util/sse.js";
 import { log } from "./util/log.js";
@@ -437,7 +437,23 @@ async function handleResponses(
     cfg,
     readActiveOverrideSafely(cfg)
   );
-  const { provider, upstreamModel, modelInfo, rewriteNotice } = selectedRaw;
+  const { provider, rewriteNotice } = selectedRaw;
+  let { upstreamModel, modelInfo } = selectedRaw;
+  // Auto-upgrade to a vision-capable model when the request contains images
+  // but the selected model doesn't support them (e.g. mimo-v2.5-pro → mimo-v2.5).
+  // This avoids silently stripping images and falling back to OCR.
+  if (payloadContainsImages(payload) && (!modelInfo || !modelInfo.supportsImages)) {
+    const visionFallback = findVisionFallback(provider);
+    if (visionFallback && visionFallback.id !== upstreamModel) {
+      log.info("auto-upgrading to vision model for image content", {
+        from: upstreamModel,
+        to: visionFallback.id,
+        reason: "request contains images but selected model has no vision support",
+      });
+      upstreamModel = visionFallback.id;
+      modelInfo = visionFallback;
+    }
+  }
   // BYOK: if a logged-in user has stored their own upstream API key for this
   // provider, swap it into the runtime. Local-mode / shared-key users keep
   // the existing runtime untouched.
@@ -932,6 +948,16 @@ async function handleResponsesPassthrough(
 // causing CodeX Desktop's `{input: "write hello world"}` requests to be
 // misidentified as probes and returned with an empty `output: []` (no
 // upstream call) — looks like "model said nothing" with zero error signal.
+function payloadContainsImages(payload: ResponsesRequest): boolean {
+  if (!Array.isArray(payload.input)) return false;
+  for (const item of payload.input) {
+    if (item.type === "message" && Array.isArray(item.content)) {
+      if (item.content.some((p) => p.type === "input_image")) return true;
+    }
+  }
+  return false;
+}
+
 // The string branch was added by 85339098-afk (PR #31).
 //
 // Exported so a focused unit test can lock the rule without spinning up the

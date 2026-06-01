@@ -1,6 +1,6 @@
 import { mimo } from "./mimo.js";
 import { deepseek } from "./deepseek.js";
-import type { Provider, ProviderId } from "./types.js";
+import type { Provider, ProviderId, ProviderModel } from "./types.js";
 
 // Built-in providers are always registered first. Generic providers loaded
 // at startup (from providers.json or GENERIC_* env vars) are appended via
@@ -70,4 +70,9 @@ export function byClientModel(model: string): Provider | undefined {
 
 export function isProviderId(s: string): s is ProviderId {
   return Object.prototype.hasOwnProperty.call(providersMapMutable, s);
+}
+
+/** Find the first vision-capable model in a provider's catalog. */
+export function findVisionFallback(provider: Provider): ProviderModel | null {
+  return provider.builtinModels?.find((m) => m.supportsImages) ?? null;
 }
