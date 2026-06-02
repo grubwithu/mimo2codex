@@ -571,6 +571,12 @@ export function CodexEnable() {
                       title={t("visionFallback.title")}
                       style={{ marginBottom: 12 }}
                     >
+                      <Alert
+                        type="info"
+                        showIcon
+                        message={t("visionFallback.scopeNote")}
+                        style={{ marginBottom: 8 }}
+                      />
                       <Space wrap>
                         <Switch
                           size="small"
@@ -598,6 +604,9 @@ export function CodexEnable() {
                         <Input
                           size="small"
                           value={visionFallbackModel}
+                          onChange={(e) =>
+                            setVisionFallbackModel(e.target.value)
+                          }
                           disabled={!visionFallbackEnabled}
                           placeholder={t("visionFallback.modelPlaceholder")}
                           onBlur={(e) =>

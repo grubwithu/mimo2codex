@@ -64,6 +64,7 @@
   },
   "visionFallback": {
     "title": "多模态 Fallback",
+    "scopeNote": "目前仅适配 MiMo 模型，其他 provider/模型暂不适配。",
     "statusOn": "已启用：图片请求自动切换 vision 模型",
     "statusOff": "未启用",
     "hint": "开启后，当请求包含图片但当前模型不支持 vision（如 mimo-v2.5-pro），自动切换到指定的多模态模型（默认 mimo-v2.5），避免图片被静默丢弃。",

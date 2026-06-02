@@ -2,7 +2,6 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Config } from "./config.js";
 import { respToResponses } from "./translate/respToResponses.js";
 import { pipeChatStreamToResponses, type StreamPipelineResult } from "./translate/streamToSse.js";
-import { modelSupportsImages } from "./translate/reqToChat.js";
 import { iterChatStreamChunks } from "./upstream/chatStream.js";
 import {
   callOpenAICompat,
@@ -404,7 +403,7 @@ function resolveVisionFallback(cfg: Config): string | null {
 }
 
 // 检测 Responses API 请求是否包含图片（input_image 类型）。
-function requestContainsImages(payload: ResponsesRequest): boolean {
+export function requestContainsImages(payload: ResponsesRequest): boolean {
   if (!Array.isArray(payload.input)) return false;
   for (const item of payload.input) {
     if (item.type === "message" && Array.isArray(item.content)) {
@@ -423,7 +422,7 @@ function requestContainsImages(payload: ResponsesRequest): boolean {
 }
 
 // 检测 Chat Completions API 请求是否包含图片（image_url 类型）。
-function chatRequestContainsImages(payload: ChatRequest): boolean {
+export function chatRequestContainsImages(payload: ChatRequest): boolean {
   if (!Array.isArray(payload.messages)) return false;
   for (const msg of payload.messages) {
     if (Array.isArray(msg.content)) {
@@ -506,25 +505,38 @@ async function handleResponses(
     cfg,
     readActiveOverrideSafely(cfg)
   );
-  // 多模态 fallback：请求含图片但 model 不支持 vision → 自动切换。
+  // 多模态 fallback：仅对声明了 vision 能力的 provider（目前只有 MiMo）生效，
+  // 不影响其他 provider/模型。请求含图片但当前 model 看不了图 → 切到 vision 模型。
   const visionFallbackModel = resolveVisionFallback(cfg);
-  if (visionFallbackModel) {
+  const supportsVision = selectedRaw.provider.supportsVision?.bind(selectedRaw.provider);
+  if (visionFallbackModel && supportsVision) {
     const effectiveModel = selectedRaw.upstreamModel;
-    if (!modelSupportsImages(effectiveModel) && requestContainsImages(payload)) {
+    if (!supportsVision(effectiveModel) && requestContainsImages(payload)) {
       const resolved = selectedRaw.provider.resolveModel(visionFallbackModel);
-      const newModel = resolved?.id ?? visionFallbackModel;
-      selectedRaw.rewriteNotice = {
-        from: effectiveModel,
-        to: newModel,
-        reason: `multimodal fallback — request contains images but model "${effectiveModel}" does not support vision`,
-      };
-      selectedRaw.upstreamModel = newModel;
-      selectedRaw.modelInfo = resolved ?? selectedRaw.modelInfo;
-      log.info("vision fallback applied", {
-        from: effectiveModel,
-        to: newModel,
-        provider: selectedRaw.provider.id,
-      });
+      // Guard against cross-provider misrouting: only rewrite when the active
+      // provider actually knows this vision model. Otherwise (e.g. DeepSeek
+      // active + default "mimo-v2.5") we'd hand the provider's key to a model
+      // it can't serve. Skip the fallback and keep the original model instead.
+      if (!resolved) {
+        log.warn("vision fallback skipped: active provider can't resolve fallback model", {
+          provider: selectedRaw.provider.id,
+          from: effectiveModel,
+          fallbackModel: visionFallbackModel,
+        });
+      } else {
+        selectedRaw.rewriteNotice = {
+          from: effectiveModel,
+          to: resolved.id,
+          reason: `multimodal fallback — request contains images but model "${effectiveModel}" does not support vision`,
+        };
+        selectedRaw.upstreamModel = resolved.id;
+        selectedRaw.modelInfo = resolved;
+        log.info("vision fallback applied", {
+          from: effectiveModel,
+          to: resolved.id,
+          provider: selectedRaw.provider.id,
+        });
+      }
     }
   }
   const { provider, upstreamModel, modelInfo, rewriteNotice } = selectedRaw;
@@ -1161,25 +1173,38 @@ async function handleChatPassthrough(
     cfg,
     readActiveOverrideSafely(cfg)
   );
-  // 多模态 fallback（chat completions 路径）：请求含图片但 model 不支持 vision → 自动切换。
+  // 多模态 fallback（chat completions 路径）：仅对声明了 vision 能力的 provider
+  // （目前只有 MiMo）生效，不影响其他 provider/模型。
   const visionFallbackModel = resolveVisionFallback(cfg);
-  if (visionFallbackModel) {
+  const supportsVision = selectedRaw.provider.supportsVision?.bind(selectedRaw.provider);
+  if (visionFallbackModel && supportsVision) {
     const effectiveModel = selectedRaw.upstreamModel;
-    if (!modelSupportsImages(effectiveModel) && chatRequestContainsImages(payload)) {
+    if (!supportsVision(effectiveModel) && chatRequestContainsImages(payload)) {
       const resolved = selectedRaw.provider.resolveModel(visionFallbackModel);
-      const newModel = resolved?.id ?? visionFallbackModel;
-      selectedRaw.rewriteNotice = {
-        from: effectiveModel,
-        to: newModel,
-        reason: `multimodal fallback — request contains images but model "${effectiveModel}" does not support vision`,
-      };
-      selectedRaw.upstreamModel = newModel;
-      selectedRaw.modelInfo = resolved ?? selectedRaw.modelInfo;
-      log.info("vision fallback applied", {
-        from: effectiveModel,
-        to: newModel,
-        provider: selectedRaw.provider.id,
-      });
+      // Guard against cross-provider misrouting: only rewrite when the active
+      // provider actually knows this vision model. Otherwise (e.g. DeepSeek
+      // active + default "mimo-v2.5") we'd hand the provider's key to a model
+      // it can't serve. Skip the fallback and keep the original model instead.
+      if (!resolved) {
+        log.warn("vision fallback skipped: active provider can't resolve fallback model", {
+          provider: selectedRaw.provider.id,
+          from: effectiveModel,
+          fallbackModel: visionFallbackModel,
+        });
+      } else {
+        selectedRaw.rewriteNotice = {
+          from: effectiveModel,
+          to: resolved.id,
+          reason: `multimodal fallback — request contains images but model "${effectiveModel}" does not support vision`,
+        };
+        selectedRaw.upstreamModel = resolved.id;
+        selectedRaw.modelInfo = resolved;
+        log.info("vision fallback applied", {
+          from: effectiveModel,
+          to: resolved.id,
+          provider: selectedRaw.provider.id,
+        });
+      }
     }
   }
   const { provider, upstreamModel, modelInfo, rewriteNotice } = selectedRaw;

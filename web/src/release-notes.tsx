@@ -14,7 +14,7 @@
 // so the modal stays scannable. We keep ONLY the latest version's entry.
 
 import type { ReactNode } from "react";
-import { ApiOutlined, SettingOutlined } from "@ant-design/icons";
+import { PictureOutlined } from "@ant-design/icons";
 
 export interface BilingualText {
   en: string;
@@ -49,35 +49,29 @@ export interface ReleaseNote {
 // doc/tag-log.{md,zh.md} for users who want the full history.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "0.5.21",
-    date: "2026-06-01",
+    version: "0.5.22",
+    date: "2026-06-02",
     title: {
-      en: "Stronger 429 handling + log storage controls",
-      zh: "更强的 429 处理 + 日志存储控制",
+      en: "Multimodal fallback",
+      zh: "多模态 fallback",
     },
     summary: {
-      en: "Sustained rate limits no longer break the session, plus log storage controls that keep data.db from growing without bound on always-on installs.",
-      zh: "持续型限流不再中断会话；并新增日志存储控制，避免常驻部署里 data.db 无上限膨胀。",
+      en: "Requests carrying images auto-route to a vision model so they aren't silently dropped (MiMo only).",
+      zh: "带图片的请求自动切到 vision 模型，避免被静默丢弃（仅 MiMo）。",
     },
     highlights: [
       {
-        kind: "fixed",
-        icon: <ApiOutlined />,
-        title: { en: "Sustained 429s no longer break the session", zh: "持续 429 不再中断会话" },
-        description: {
-          en: "The proxy now retries a rate limit for ~28s (was ~3.5s), so multi-second quota limits clear before the 429 reaches Codex.",
-          zh: "代理现在最多重试约 28 秒（原约 3.5 秒）扛限流，让几十秒内的配额限流自行解除，不再把 429 透传给 Codex 触发「exceeded retry limit」。",
-        },
-      },
-      {
         kind: "new",
-        icon: <SettingOutlined />,
-        title: { en: "Log storage settings", zh: "日志存储设置" },
-        description: {
-          en: "Chat logs store every request/response in full, so over time data.db balloons (disk, slower backups, privacy). Now store all bodies, failures only, or none — and auto-delete logs older than N days to keep the DB bounded.",
-          zh: "聊天日志会完整保存每次请求/响应，时间久了 data.db 会越来越大（占磁盘、备份变慢、隐私）。现在可选保存全部 body、仅失败请求或完全不存，并自动删除超过 N 天的旧日志，把数据库体积控制住。",
+        icon: <PictureOutlined />,
+        title: {
+          en: "Multimodal fallback for non-vision models",
+          zh: "非 vision 模型的多模态 fallback",
         },
-        location: { en: "Logs page → Storage settings", zh: "日志页 → 存储设置" },
+        description: {
+          en: "When a request carries images but your model can't see them (e.g. mimo-v2.5-pro), it auto-switches to a vision model (default mimo-v2.5) so the image isn't dropped. Off by default and MiMo-only — other providers are never affected.",
+          zh: "当请求带图片但当前模型看不了图（如 mimo-v2.5-pro）时，自动切到 vision 模型（默认 mimo-v2.5），图片不再被丢弃。默认关闭；仅对 MiMo 生效，不影响其他 provider/模型。",
+        },
+        location: { en: "Codex Integration → Multimodal fallback", zh: "Codex 接入页 → 多模态 fallback" },
       },
     ],
   },
