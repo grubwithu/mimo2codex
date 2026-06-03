@@ -46,6 +46,7 @@ export interface PreprocessCtx {
   // sensenova/generic: reasoning_effort:"none"）。reqToChat 一并设两个，由 generic
   // provider 的 preprocessResponses 删掉 thinking，正好留 reasoning_effort 给 sensenova。
   disableThinking?: boolean;
+  disableWebSearch?: boolean;
   // 独立开关：兜底注入 reasoning_effort:"high"。当 Codex 没传 reasoning.effort 时主动让
   // 上游真高强度思考。默认 false，仅在 admin UI 显式打开时生效。disableThinking=true 时
   // 此开关被忽略（关思考路径接管）。

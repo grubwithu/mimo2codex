@@ -38,6 +38,7 @@ export interface Config {
   //   undefined → 未显式设置，让运行时读 settings DB（admin UI 控制）
   // server.ts 的 resolveDisableThinking() 实现 CLI > settings > false 的优先级。
   disableThinkingFromCli?: boolean;
+  disableWebSearchFromCli?: boolean;
   // Authentication mode. "off" (default for the native CLI binary) keeps the
   // historic local-only behavior: /admin/* and /v1/* are fully open, no users,
   // no sessions, no per-request key checks. "on" (default in the Docker image
@@ -78,6 +79,7 @@ export interface ParsedArgs {
   noLoadEnv?: boolean;
   noUpdateCheck?: boolean;
   disableThinking?: boolean;
+  noWebSearch?: boolean;
   authMode?: "off" | "on";
   logBodyMode?: LogBodyMode;
   logRetentionDays?: number | null;
@@ -143,6 +145,9 @@ export function parseArgv(argv: string[]): ParsedArgs {
         break;
       case "--disable-thinking":
         out.disableThinking = true;
+        break;
+      case "--no-web-search":
+        out.noWebSearch = true;
         break;
       case "--auth": {
         const v = next().toLowerCase();
@@ -296,6 +301,11 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
     (env.MIMO2CODEX_DISABLE_THINKING === "1" || env.MIMO2CODEX_DISABLE_THINKING === "true"
       ? true
       : undefined);
+  const disableWebSearchFromCli: boolean | undefined =
+    parsed.noWebSearch ??
+    (env.MIMO2CODEX_DISABLE_WEB_SEARCH === "1" || env.MIMO2CODEX_DISABLE_WEB_SEARCH === "true"
+      ? true
+      : undefined);
 
   // --auth on|off > MIMO2CODEX_AUTH=on|1|true|off|0|false > "off" default.
   // Docker images flip this to "on" via ENV in the Dockerfile, so containers
@@ -317,6 +327,7 @@ export function buildConfig(parsed: ParsedArgs, env: NodeJS.ProcessEnv, version:
     adminEnabled,
     contextOverflowMode,
     disableThinkingFromCli,
+    disableWebSearchFromCli,
     authMode,
     cookieSecure: env.MIMO2CODEX_COOKIE_SECURE === "1" || env.MIMO2CODEX_COOKIE_SECURE === "true",
     silentRewriteFromCli:

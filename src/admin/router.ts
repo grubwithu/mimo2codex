@@ -969,16 +969,28 @@ async function handleApi(ctx: RouteContext): Promise<void> {
           return false;
         }
       })();
+      const webSearchDisabledFromSetting = (() => {
+        try {
+          return getSetting("webSearch.disabled") === "1";
+        } catch {
+          return false;
+        }
+      })();
+      const webSearchCliOverride = cfg.disableWebSearchFromCli ?? null;
+      const webSearchDisabledEffective = webSearchCliOverride !== null ? webSearchCliOverride : webSearchDisabledFromSetting;
       const effective = cliOverride !== null ? cliOverride : disabledFromSetting;
       return sendJson(res, 200, {
         effective,
         cliOverride,
         setting: disabledFromSetting,
         forceHighEffort: forceHighEffortFromSetting,
+        webSearchDisabled: webSearchDisabledEffective,
+        webSearchDisabledCliOverride: webSearchCliOverride,
+        webSearchDisabledSetting: webSearchDisabledFromSetting,
       });
     }
     if (req.method === "PUT") {
-      const body = await readJsonBody<{ disabled?: unknown; forceHighEffort?: unknown }>(req);
+      const body = await readJsonBody<{ disabled?: unknown; forceHighEffort?: unknown; webSearchDisabled?: unknown }>(req);
       let changed = false;
       if (typeof body.disabled === "boolean") {
         setSetting("thinking.disabled", body.disabled ? "1" : "0");
@@ -990,12 +1002,17 @@ async function handleApi(ctx: RouteContext): Promise<void> {
         log.info(`thinking.forceHighEffort set to ${body.forceHighEffort} via admin UI`);
         changed = true;
       }
+      if (typeof body.webSearchDisabled === "boolean") {
+        setSetting("webSearch.disabled", body.webSearchDisabled ? "1" : "0");
+        log.info(`webSearch.disabled set to ${body.webSearchDisabled} via admin UI`);
+        changed = true;
+      }
       if (!changed) {
         return sendError(
           res,
           400,
           "invalid_body",
-          "body must include at least one of: disabled (boolean), forceHighEffort (boolean)",
+          "body must include at least one of: disabled (boolean), forceHighEffort (boolean), webSearchDisabled (boolean)",
         );
       }
       return sendJson(res, 200, { ok: true });

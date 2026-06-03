@@ -167,7 +167,7 @@ export const mimo: Provider = {
     // strip web_search before forwarding (avoids 400 "webSearchEnabled is false").
     const chat = reqToChat(req, {
       forceParallelToolCalls: true,
-      enableWebSearch: !ctx.runtime.flags.isTokenPlan,
+      enableWebSearch: !ctx.runtime.flags.isTokenPlan && !ctx.disableWebSearch,
       imageDropDir: ctx.dataDir,
       disableThinking: ctx.disableThinking,
       forceHighEffort: ctx.forceHighEffort,

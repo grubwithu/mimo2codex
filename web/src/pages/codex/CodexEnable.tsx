@@ -67,6 +67,9 @@ export function CodexEnable() {
   const [visionFallbackEnabled, setVisionFallbackEnabled] = useState<boolean | null>(null);
   const [visionFallbackModel, setVisionFallbackModel] = useState<string>("mimo-v2.5");
   const [visionFallbackSaving, setVisionFallbackSaving] = useState<boolean>(false);
+  const [webSearchDisabled, setWebSearchDisabled] = useState<boolean | null>(null);
+  const [webSearchDisabledCliOverride, setWebSearchDisabledCliOverride] = useState<boolean>(false);
+  const [webSearchSaving, setWebSearchSaving] = useState<boolean>(false);
 
   async function doProbe(target: CodexTarget) {
     const key = `${target.providerId}::${target.modelId}`;
@@ -110,6 +113,8 @@ export function CodexEnable() {
         setThinkingDisabled(think.effective);
         setThinkingCliOverridden(think.cliOverride !== null);
         setForceHighEffort(think.forceHighEffort);
+        setWebSearchDisabled(think.webSearchDisabled);
+        setWebSearchDisabledCliOverride(think.webSearchDisabledCliOverride !== null);
       }
       if (vf) {
         setVisionFallbackEnabled(vf.enabled);
@@ -169,6 +174,18 @@ export function CodexEnable() {
       setError((err as Error).message);
     } finally {
       setVisionFallbackSaving(false);
+    }
+  }
+
+  async function doToggleWebSearchDisabled(disabled: boolean): Promise<void> {
+    setWebSearchSaving(true);
+    try {
+      await api.setWebSearchDisabled(disabled);
+      setWebSearchDisabled(disabled);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setWebSearchSaving(false);
     }
   }
 
@@ -618,6 +635,31 @@ export function CodexEnable() {
                           style={{ width: 240, marginTop: 4, marginLeft: 4 }}
                         />
                       </div>
+                    </Card>
+                  )}
+                  {webSearchDisabled !== null && (
+                    <Card
+                      size="small"
+                      title={t("webSearch.title")}
+                    >
+                      <Space wrap>
+                        <Switch
+                          size="small"
+                          checked={!webSearchDisabled}
+                          loading={webSearchSaving}
+                          disabled={webSearchDisabledCliOverride}
+                          onChange={(enabled) =>
+                            void doToggleWebSearchDisabled(!enabled)
+                          }
+                          checkedChildren={t("webSearch.switchOn")}
+                          unCheckedChildren={t("webSearch.switchOff")}
+                        />
+                        <span>
+                          {webSearchDisabled
+                            ? t("webSearch.statusOff")
+                            : t("webSearch.statusOn")}
+                        </span>
+                      </Space>
                       <Typography.Paragraph
                         type="secondary"
                         style={{
@@ -626,8 +668,16 @@ export function CodexEnable() {
                           marginBottom: 0,
                         }}
                       >
-                        {t("visionFallback.hint")}
+                        {t("webSearch.hint")}
                       </Typography.Paragraph>
+                      {webSearchDisabledCliOverride && (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message={t("webSearch.cliOverride")}
+                          style={{ marginTop: 8 }}
+                        />
+                      )}
                     </Card>
                   )}
                   {state && (

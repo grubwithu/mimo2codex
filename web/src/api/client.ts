@@ -603,6 +603,9 @@ export const api = {
       cliOverride: boolean | null;
       setting: boolean;
       forceHighEffort: boolean;
+      webSearchDisabled: boolean;
+      webSearchDisabledCliOverride: boolean | null;
+      webSearchDisabledSetting: boolean;
     }>("GET", "/thinking-state"),
   setThinkingDisabled: (disabled: boolean) =>
     request<{ ok: boolean }>("PUT", "/thinking-state", { disabled }),
@@ -612,6 +615,8 @@ export const api = {
     request<{ enabled: boolean; model: string }>("GET", "/vision-fallback"),
   setVisionFallback: (body: { enabled?: boolean; model?: string }) =>
     request<{ ok: boolean }>("PUT", "/vision-fallback", body),
+  setWebSearchDisabled: (webSearchDisabled: boolean) =>
+    request<{ ok: boolean }>("PUT", "/thinking-state", { webSearchDisabled }),
   logSettings: () => request<LogSettingsResponse>("GET", "/log-settings"),
   setSilentRewrite: (silentRewrite: boolean) =>
     request<{ ok: boolean }>("PUT", "/log-settings", { silentRewrite }),

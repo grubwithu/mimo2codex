@@ -77,6 +77,19 @@ function resolveSilentRewrite(cfg: Config): boolean {
   }
 }
 
+// disableWebSearch 三段解析：CLI/env (cfg.disableWebSearchFromCli) > admin settings DB > false。
+// CLI 显式设了 true 都尊重；CLI 没设时查 settings.webSearch.disabled（"1"=开）。
+// 每个请求开始时调一次，让 admin UI 修改 settings 后**无需重启**立刻生效。
+function resolveDisableWebSearch(cfg: Config): boolean {
+  if (cfg.disableWebSearchFromCli !== undefined) return cfg.disableWebSearchFromCli;
+  if (!cfg.adminEnabled) return false;
+  try {
+    return getSetting("webSearch.disabled") === "1";
+  } catch {
+    return false;
+  }
+}
+
 const KEEPALIVE_INTERVAL_MS = 15_000;
 
 async function readJsonBody<T>(req: IncomingMessage, maxBytes = 16 * 1024 * 1024): Promise<T> {
@@ -593,6 +606,7 @@ async function handleResponses(
     dataDir: cfg.dataDir,
     disableThinking: resolveDisableThinking(cfg),
     forceHighEffort: resolveForceHighEffort(cfg),
+    disableWebSearch: resolveDisableWebSearch(cfg),
     upstreamModel,
   });
   chat.model = upstreamModel;
@@ -1234,6 +1248,7 @@ async function handleChatPassthrough(
     exposeReasoning: cfg.exposeReasoning,
     disableThinking: resolveDisableThinking(cfg),
     forceHighEffort: resolveForceHighEffort(cfg),
+    disableWebSearch: resolveDisableWebSearch(cfg),
     upstreamModel,
   });
   body.model = upstreamModel;

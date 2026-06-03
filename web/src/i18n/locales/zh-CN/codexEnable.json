@@ -164,5 +164,14 @@
     "restoreMissingPrefix": "注意：此备份只有一半。",
     "deletePreserved": "这是「🔒 原始 Codex 配置」备份 — 删除后将无法再一键恢复回你最初的真 Codex 配置。\n\n确定继续？",
     "deleteNormal": "删除备份 ts={{ts}}？此操作不可逆。"
+  },
+  "webSearch": {
+    "title": "联网搜索（全局默认）",
+    "switchOn": "开",
+    "switchOff": "关",
+    "statusOn": "默认允许联网搜索",
+    "statusOff": "默认关闭联网搜索",
+    "hint": "关闭后，MiMo 联网搜索 builtin（web_search）不会再被转发给上游，即便 Codex 请求里带了 web_search 工具也会被剥掉。用于降低「模型自动联网搜索」带来的额外扣费。修改后立即对新请求生效（无需重启）。",
+    "cliOverride": "「联网搜索」当前由 CLI flag (--no-web-search) 或环境变量 (MIMO2CODEX_DISABLE_WEB_SEARCH) 控制，开关被锁定。如需用 UI 控制，启动时不要带这些参数。"
   }
 }

@@ -75,6 +75,8 @@ OPTIONS
       --disable-thinking  globally skip upstream "thinking" mode (mimo/deepseek: thinking:disabled;
                           sensenova/generic: reasoning_effort:"none"). Admin UI 也可配置；
                           CLI flag 优先于 admin UI 设置. env: MIMO2CODEX_DISABLE_THINKING=1
+      --no-web-search     disable MiMo web_search forwarding even on pay-as-you-go keys.
+                          env: MIMO2CODEX_DISABLE_WEB_SEARCH=1; Admin UI also has a toggle
       --data-dir <path>   admin sqlite + UI data directory (default: ~/.mimo2codex,
                           env: MIMO2CODEX_DATA_DIR)
       --no-admin          disable the local admin UI + sqlite logging
@@ -134,6 +136,7 @@ DEFAULTS BAKED IN (no flag needed)
         "webSearchEnabled is false" — mimo2codex surfaces that error so you can
         activate the plugin (https://platform.xiaomimimo.com/#/console/plugin,
         separately billed) and restart, or accept that web search isn't available
+        (use --no-web-search or the Admin UI toggle under Codex to disable forwarding)
 
 SUBCOMMANDS
   init                    bootstrap <data-dir>/.env + .env.example from the bundled

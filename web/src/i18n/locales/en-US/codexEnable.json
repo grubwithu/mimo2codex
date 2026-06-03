@@ -164,5 +164,14 @@
     "restoreMissingPrefix": "Note: this backup is half-only. ",
     "deletePreserved": "This is a '🔒 Original Codex config' backup — deleting it permanently removes the ability to restore your initial real Codex config.\n\nProceed?",
     "deleteNormal": "Delete backup ts={{ts}}? This is irreversible."
+  },
+  "webSearch": {
+    "title": "Web search (global default)",
+    "switchOn": "ON",
+    "switchOff": "OFF",
+    "statusOn": "Web search ON by default",
+    "statusOff": "Web search OFF by default",
+    "hint": "When OFF, MiMo's native web_search builtin is not forwarded even if Codex sends a web_search tool. Useful to reduce automatic web-search billing. Takes effect immediately (no restart).",
+    "cliOverride": "Web search is currently controlled by CLI flag (--no-web-search) or env (MIMO2CODEX_DISABLE_WEB_SEARCH). The switch is locked. Restart without those args to control via UI."
   }
 }
