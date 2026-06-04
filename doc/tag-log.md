@@ -21,6 +21,10 @@ Release history of mimo2codex, newest first.
 
 - **[new]** **Windows: isolated Codex CLI launcher** (PR #64, thanks @Kaiyuan GONG): a new `scripts/codex-mimo-isolated.ps1` lets you run **Codex CLI** against MiMo via mimo2codex **without touching the `~/.codex` used by Codex Desktop**. It uses a separate `CODEX_HOME=%USERPROFILE%\.codex-mimo`, writes a minimal `auth.json` + `config.toml` there on first run, auto-starts the proxy if `:8788` isn't already listening, prints the local API/admin URLs, then forwards all remaining args to `codex`. API keys are not hardcoded — configure them via `mimo2codex init`. See `doc/codex-cli-isolated-windows.zh.md` for the walkthrough.
 
+- **[fix]** **Saving a generic provider with a duplicate shortcut no longer bricks the admin UI (`/admin/` 404)** (issue #63): `providers.shortcut` is `UNIQUE`, but the save path only de-duped provider `id`, not `shortcut`. A generic whose shortcut collided with a built-in (`mimo` / `ds`) or with another generic would save fine, then crash the **next** startup's DB seed (`UNIQUE constraint failed: providers.shortcut`), which the cli.ts fallback then turned into a disabled admin — so every `/admin/` request 404'd. Two-layer fix: (1) `writeSpecsToFile` now rejects a colliding shortcut **at save time** with a clear message (seeded with the built-in shortcuts); (2) DB seeding de-dupes by shortcut (`dedupeProvidersByShortcut`) — a duplicate is **skipped with a warning** instead of crashing the whole seed, so anyone who already saved a dirty `providers.json` gets their admin back on the next start.
+
+- **[fix]** **`enhanceErrorPreset: "kimi"` is no longer silently dropped from generic providers**: `kimi` is a valid `ProviderPresetId` (`src/providers/presets.ts`) but the providers.json parser only accepted `sensenova` / `minimax`, so a Kimi error-diagnostic preset never persisted. It's now accepted alongside the others.
+
 ---
 
 ## v0.5.22

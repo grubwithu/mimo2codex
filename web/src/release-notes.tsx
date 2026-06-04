@@ -14,7 +14,7 @@
 // so the modal stays scannable. We keep ONLY the latest version's entry.
 
 import type { ReactNode } from "react";
-import { WindowsOutlined } from "@ant-design/icons";
+import { BugOutlined, WindowsOutlined } from "@ant-design/icons";
 
 export interface BilingualText {
   en: string;
@@ -52,12 +52,12 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "0.5.23",
     date: "2026-06-03",
     title: {
-      en: "Windows: isolated Codex CLI launcher",
-      zh: "Windows：隔离的 Codex CLI 启动器",
+      en: "Windows CLI launcher + provider-config fix",
+      zh: "Windows CLI 启动器 + provider 配置修复",
     },
     summary: {
-      en: "Run Codex CLI against MiMo in an isolated profile, without touching the ~/.codex used by Codex Desktop.",
-      zh: "用隔离配置跑 Codex CLI 接 MiMo，不动 Codex 桌面端的 ~/.codex。",
+      en: "Run Codex CLI in an isolated profile; plus a fix for the admin UI going 404 after saving a provider with a duplicate shortcut.",
+      zh: "用隔离配置跑 Codex CLI；并修复了保存重复 shortcut 的 provider 后后台变 404 的问题。",
     },
     highlights: [
       {
@@ -72,6 +72,18 @@ export const RELEASE_NOTES: ReleaseNote[] = [
           zh: "用 Codex CLI 经 mimo2codex 接 MiMo，又不动 Codex 桌面端的 ~/.codex——PowerShell 脚本用独立 CODEX_HOME 并自动拉起代理。",
         },
         location: { en: "scripts/codex-mimo-isolated.ps1", zh: "scripts/codex-mimo-isolated.ps1" },
+      },
+      {
+        kind: "fixed",
+        icon: <BugOutlined />,
+        title: {
+          en: "Saving a provider no longer breaks the admin UI",
+          zh: "保存 provider 不再把后台搞挂",
+        },
+        description: {
+          en: "A generic provider whose shortcut collided with a built-in (mimo/ds) or another provider could disable the admin database on the next start (/admin/ 404). It's now rejected at save time, and DB seeding skips duplicates instead of crashing.",
+          zh: "某个 generic provider 的 shortcut 撞上内置（mimo/ds）或其它 provider 时，下次启动会让 admin 数据库不可用（/admin/ 404）。现在保存时就拦下，且 seeding 会跳过重复项而不是崩溃。",
+        },
       },
     ],
   },
