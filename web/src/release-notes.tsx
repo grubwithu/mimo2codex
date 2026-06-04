@@ -78,7 +78,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         icon: <BugOutlined />,
         title: {
           en: "Saving a provider no longer breaks the admin UI",
-          zh: "保存 provider 不再把后台搞挂",
+          zh: "shortcut冲突 保存 provider 不再把后台搞挂",
         },
         description: {
           en: "A generic provider whose shortcut collided with a built-in (mimo/ds) or another provider could disable the admin database on the next start (/admin/ 404). It's now rejected at save time, and DB seeding skips duplicates instead of crashing.",
