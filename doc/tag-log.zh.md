@@ -21,6 +21,10 @@ mimo2codex 的版本发布历史，按 tag 倒序排列。
 
 - **[new]** **Windows：隔离的 Codex CLI 启动器**（PR #64，感谢 @Kaiyuan GONG）：新增脚本 `scripts/codex-mimo-isolated.ps1`，让你用 **Codex CLI** 经 mimo2codex 接 MiMo，又**不动 Codex 桌面端常用的 `~/.codex`**。它用独立的 `CODEX_HOME=%USERPROFILE%\.codex-mimo`，首次运行时在那里写入最小的 `auth.json` + `config.toml`，若 `:8788` 没在监听就自动拉起代理，打印本地 API/admin 地址，然后把其余参数原样转发给 `codex`。脚本不硬编码 API key —— 用 `mimo2codex init` 配置。完整说明见 `doc/codex-cli-isolated-windows.zh.md`。
 
+- **[fix]** **保存带重复 shortcut 的 generic provider 不再把后台搞挂（`/admin/` 404）**（issue #63）：`providers.shortcut` 是 `UNIQUE` 列，但保存路径只对 provider `id` 去重、不查 `shortcut`。一个 generic 的 shortcut 撞上内置（`mimo` / `ds`）或撞上另一个 generic 时，保存能成功，却会在**下次启动**的 DB seeding 阶段抛 `UNIQUE constraint failed: providers.shortcut`，再被 cli.ts 的兜底逻辑变成「admin 禁用」—— 于是所有 `/admin/` 请求都 404。两层修复：(1) `writeSpecsToFile` 现在**保存时**就拦下冲突的 shortcut 并给出清晰提示（预置了内置的 shortcut）；(2) DB seeding 按 shortcut 去重（`dedupeProvidersByShortcut`）——重复项**跳过并打 warn**，而不是让整个 seeding 崩掉，这样已经存了脏 `providers.json` 的用户下次启动也能恢复后台。
+
+- **[fix]** **generic provider 的 `enhanceErrorPreset: "kimi"` 不再被静默丢弃**：`kimi` 本就是合法的 `ProviderPresetId`（`src/providers/presets.ts`），但 providers.json 解析器此前只认 `sensenova` / `minimax`，导致 Kimi 的错误诊断预设永远存不下来。现在和其它预设一并承认。
+
 ---
 
 ## v0.5.22
